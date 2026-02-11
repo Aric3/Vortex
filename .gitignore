@@ -1,0 +1,63 @@
+
+# 1. System & IDE
+
+.DS_Store
+Thumbs.db
+.idea/
+*.iml
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+
+# 2. Spring Boot / Maven / Gradle
+
+trade-core/target/
+trade-core/build/
+trade-core/.mvn/
+trade-core/mvnw
+trade-core/mvnw.cmd
+*.class
+*.jar
+*.war
+*.ear
+*.log
+
+
+# 3. Vue.js (Node / Vite / Webpack)
+
+trade-ui/node_modules/
+trade-ui/dist/
+trade-ui/dist-ssr/
+trade-ui/*.local
+trade-ui/.eslintcache
+trade-ui/npm-debug.log*
+trade-ui/yarn-debug.log*
+trade-ui/yarn-error.log*
+
+
+# 4. Python
+
+**/__pycache__/
+**/*.py[cod]
+**/*$py.class
+**/.pytest_cache/
+trade-simulators/venv/
+trade-simulators/.env
+trade-analysis/venv/
+.python-version
+
+
+# 5. SQLite / Logs
+
+*.db
+*.db-journal
+*.sqlite
+logs/
+*.out
+
+# 6. Other Build Tools & Temp Files
+
+.temp/
+.cache/
+tmp/
