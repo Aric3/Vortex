@@ -1,10 +1,10 @@
-# Vortex 系统接口规范 v1.0
-
-## 1. 下单接口 [POST] /api/v1/orders
-模拟交易转发逻辑，接收客户端下单请求。
-
-**请求 (Request Body):**
-```json
+# Vortex 系统接口规范 v1.1
+## 1. 客户端相关接口（/api/v1/vclient）
+### 1.1 下单
+- 请求方式：POST
+- 接口路径： /api/v1/vclient/orders
+- 请求体（request body）：
+``` json
 {
     "clOrderId": "char[16]", // 客户端订单号 (16字节字符串)
     "market": "char[4]", // 订单交易的市场 (4字节字符串) XSHG: 上交所, XSHE: 深交所, BJSE: 北交所
@@ -15,22 +15,48 @@
     "shareholderId": "char[10]" // 股东号 (10字节字符串)
 }
 ```
-
-**响应 (Response Body):**
-```json
+- 响应体（response body）：
+``` json
 {
-    "status": "int32", // 状态码: 0-成功接收, 1-基础校验失败
-    "message": "char[64]" // 状态描述
+"success": "bool", // 是否成功 true: 成功, false: 失败
+"code": "int32", // 状态码:[0:成功 业务错误：1000-4999 系统错误：5000-5999]
+"message": "char[64]", // 消息描述
+"data": "json", // 业务数据，根据不同接口有不同格式
+"timestamp": "uint64" // 时间戳 (8字节无符号整数)
+}
+```
+业务数据（data）：
+- 未触发对敲撮合且通过基础合法检验，订单会被发送到交易所，等待交易所返回确认回报。此时data为空.
+success: true
+code: 0
+message: "The order is valid and has been forwarded to the exchange."
+data: {}
+timestamp: current timestamp in milliseconds
+
+- 触发对敲撮合时，返回撮合结果。且系统自动向交易所发起撤单请求，将待撤单请求的信息返回给客户端。
+``` json
+{
+    "buyOrderId": "char[16]", // 买订单号 (16字节字符串)
+    "sellOrderId": "char[16]", // 卖订单号 (16字节字符串)
+    "matchPrice": "double", // 撮合价格 (8字节浮点数)
+    "matchQty": "uint32", // 撮合成交数量 (4字节无符号整数)
+    "cancellationOrderId": "char[16]", // 撤单请求的唯一编号 (16字节字符串)
+    "origClOrderId": "char[16]", // 待撤原始订单的唯一编号 (16字节字符串)(买订单号或卖订单号)
+    "market": "char[4]", // 待撤订单交易的市场 (4字节字符串) XSHG: 上交所, XSHE: 深交所, BJSE: 北交所
+    "securityId": "char[6]", // 待撤订单交易的股票代码 (6字节字符串)
+    "side": "char[1]", // 待撤订单买卖方向 (1字节字符串) B: 买, S: 卖
+    "shareholderId": "char[10]", // 待撤订单的股东号 (10字节字符串) 与下单时的股东号一致
+    "cancellationQty": "uint32" // 待撤回数量 (4字节无符号整数) 等于下单时的数量减去已撮合数量
 }
 ```
 
----
+- 下单失败时，返回错误码和错误消息。data为空。
 
-## 2. 撤单接口 [POST] /api/v1/orders/cancel
-处理输入的撤单请求。
-
-**请求 (Request Body):**
-```json
+### 1.2 撤单
+- 请求方式：POST
+- 接口路径： /api/v1/vclient/orders/cancel  
+- 请求体（request body）：
+``` json
 {
     "clOrderId": "char[16]", // 撤单请求的唯一编号 (16字节字符串)
     "origClOrderId": "char[16]", // 待撤原始订单的唯一编号 (16字节字符串)
@@ -40,48 +66,52 @@
     "shareholderId": "char[10]" // 待撤订单的股东号 (10字节字符串)
 }
 ```
-
-**响应 (Response Body):**
-```json
+- 响应体（response body）： 
+``` json    
 {
-    "status": "int32", // 状态码: 0-成功接收, 1-基础校验失败
-    "message": "char[64]" // 状态描述
+    "success": "bool", // 是否成功 true: 成功, false: 失败
+    "code": "int32", // 状态码:[0:成功 业务错误：1000-4999 系统错误：5000-5999]
+    "message": "char[64]", // 消息描述
+    "data": "json", // 业务数据，根据不同接口有不同格式
+    "timestamp": "uint64" // 时间戳 (8字节无符号整数)
+}
+```
+收到撤单请求后，只返回处理这个撤单请求的情况。data为空，因为此时还未真正将撤单提交到交易所，未收到交易所的确认。
+
+--- 
+## 2. 行情相关接口（/api/v1/vmarket）
+### 2.1 接收行情信息
+- 请求方式：POST
+- 接口路径：/api/v1/vmarket
+- 请求体（request body）：
+``` json    
+{
+    "market": "char[4]", // 行情对应的市场 (4字节字符串) XSHG: 上交所, XSHE: 深交所, BJSE: 北交所
+    "securityId": "char[6]", // 行情对应的股票代码 (6字节字符串)
+    "bidPrice": "double", // 行情对应的最新买价 (8字节浮点数)
+    "askPrice": "double" // 行情对应的最新卖价 (8字节浮点数)
+}
+```
+
+- 响应 (Response Body):
+``` json    
+{
+    "success": "bool", // 是否成功 true: 成功, false: 失败
+    "code": "int32", // 状态码:[0:成功 业务错误：1000-4999 系统错误：5000-5999]
+    "message": "char[64]", // 消息描述
+    "data": "json", // 业务数据，根据不同接口有不同格式
+    "timestamp": "uint64" // 时间戳 (8字节无符号整数)
 }
 ```
 
 ---
 
-## 3. 行情信息接口 [POST] /api/v1/market-data
-读取解析输入的行情信息。
-
-**请求 (Request Body):**
-```json
-[
-    {
-        "market": "char[4]", // 行情对应的市场 (4字节字符串) XSHG: 上交所, XSHE: 深交所, BJSE: 北交所
-        "securityId": "char[6]", // 行情对应的股票代码 (6字节字符串)
-        "bidPrice": "double", // 行情对应的最新买价 (8字节浮点数)
-        "askPrice": "double" // 行情对应的最新卖价 (8字节浮点数)
-    }
-]
-```
-
-**响应 (Response Body):**
-```json
-{
-    "status": "int32", // 状态码: 0-成功接收
-    "count": "uint32" // 接收到的行情条数
-}
-```
-
----
-
-## 4. 交易所回报回调 (Execution Reports Callbacks)
-系统异步推送给客户端的回报信息。客户端需在接收到推送后返回成功确认。
-
-### 4.1 订单确认回报 [POST] /api/v1/callback/order-accept
-**请求 (Request Body):**
-```json
+## 3. 交易所相关接口（/api/v1/vexchange）
+### 3.1 订单确认回报
+- 请求方式：POST
+- 接口路径：/api/v1/vexchange/ack/order-accept
+- 请求体（request body）：
+``` json    
 {
     "clOrderId": "char[16]", // 订单的唯一编号 (16字节字符串)
     "market": "char[4]", // 订单交易的市场 (4字节字符串) XSHG: 上交所, XSHE: 深交所, BJSE: 北交所
@@ -93,16 +123,21 @@
 }
 ```
 
-**响应 (Response Body):**
-```json
+- 响应 (Response Body):
+``` json    
 {
-    "status": "int32" // 客户端返回: 0-成功处理推送
+    "success": "bool", // 是否成功 true: 成功, false: 失败
+    "code": "int32", // 状态码:[0:成功 业务错误：1000-4999 系统错误：5000-5999]
+    "message": "char[64]", // 消息描述
+    "data": "json", // 业务数据，根据不同接口有不同格式
+    "timestamp": "uint64" // 时间戳 (8字节无符号整数)
 }
 ```
-
-### 4.2 订单非法回报 [POST] /api/v1/callback/order-reject
-**请求 (Request Body):**
-```json
+### 3.2 订单非法回报
+- 请求方式：POST
+- 接口路径：/api/v1/vexchange/ack/order-reject
+- 请求体（request body）：
+``` json        
 {
     "clOrderId": "char[16]", // 订单的唯一编号 (16字节字符串)
     "market": "char[4]", // 订单交易的市场 (4字节字符串) XSHG: 上交所, XSHE: 深交所, BJSE: 北交所
@@ -114,18 +149,22 @@
     "rejectCode": "int32", // 错误代码 (4字节整数)
     "rejectText": "char[64]" // 错误原因说明 (64字节字符串)
 }
-```
 
-**响应 (Response Body):**
-```json
+- 响应 (Response Body):
+``` json    
 {
-    "status": "int32" // 客户端返回: 0-成功处理推送
+    "success": "bool", // 是否成功 true: 成功, false: 失败
+    "code": "int32", // 状态码:[0:成功 业务错误：1000-4999 系统错误：5000-5999]
+    "message": "char[64]", // 消息描述
+    "data": "json", // 业务数据，根据不同接口有不同格式
+    "timestamp": "uint64" // 时间戳 (8字节无符号整数)
 }
 ```
-
-### 4.3 订单成交回报 [POST] /api/v1/callback/execution
-**请求 (Request Body):**
-```json
+### 3.3 订单成交回报
+- 请求方式：POST
+- 接口路径：/api/v1/vexchange/ack/order-deal
+- 请求体（request body）：
+``` json        
 {
     "clOrderId": "char[16]", // 订单的唯一编号 (16字节字符串)
     "market": "char[4]", // 订单交易的市场 (4字节字符串) XSHG: 上交所, XSHE: 深交所, BJSE: 北交所
@@ -138,18 +177,22 @@
     "execQty": "uint32", // 本次成交数量 (4字节无符号整数)
     "execPrice": "double" // 本次成交价格 (8字节浮点数)
 }
-```
 
-**响应 (Response Body):**
-```json
+- 响应 (Response Body):
+``` json    
 {
-    "status": "int32" // 客户端返回: 0-成功处理推送
+    "success": "bool", // 是否成功 true: 成功, false: 失败
+    "code": "int32", // 状态码:[0:成功 业务错误：1000-4999 系统错误：5000-5999]
+    "message": "char[64]", // 消息描述
+    "data": "json", // 业务数据，根据不同接口有不同格式
+    "timestamp": "uint64" // 时间戳 (8字节无符号整数)
 }
 ```
-
-### 4.4 撤单确认回报 [POST] /api/v1/callback/cancel-accept
-**请求 (Request Body):**
-```json
+### 3.4 撤单确认回报
+- 请求方式：POST
+- 接口路径：/api/v1/vexchange/ack/cancellation-accept
+- 请求体（request body）：
+``` json            
 {
     "clOrderId": "char[16]", // 撤单请求的唯一编号 (16字节字符串)
     "origClOrderId": "char[16]", // 已撤原始订单的唯一编号 (16字节字符串)
@@ -162,29 +205,33 @@
     "cumQty": "uint32", // 累计成交数量 (4字节无符号整数)
     "canceledQty": "uint32" // 本次撤单成功的数量 (4字节无符号整数)
 }
-```
-
-**响应 (Response Body):**
-```json
+- 响应 (Response Body):
+``` json    
 {
-    "status": "int32" // 客户端返回: 0-成功处理推送
+    "success": "bool", // 是否成功 true: 成功, false: 失败
+    "code": "int32", // 状态码:[0:成功 业务错误：1000-4999 系统错误：5000-5999]
+    "message": "char[64]", // 消息描述
+    "data": "json", // 业务数据，根据不同接口有不同格式
+    "timestamp": "uint64" // 时间戳 (8字节无符号整数)
 }
 ```
-
-### 4.5 撤单非法回报 [POST] /api/v1/callback/cancel-reject
-**请求 (Request Body):**
-```json
+### 3.5 撤单非法回报
+- 请求方式：POST
+- 接口路径：/api/v1/vexchange/ack/cancellation-reject
+- 请求体（request body）：
+``` json            
 {
     "clOrderId": "char[16]", // 撤单请求的唯一编号 (16字节字符串)
     "origClOrderId": "char[16]", // 待撤订单的唯一编号 (16字节字符串)
     "rejectCode": "int32", // 错误代码 (4字节整数)
     "rejectText": "char[64]" // 错误原因说明 (64字节字符串)
 }
-```
-
-**响应 (Response Body):**
-```json
+- 响应 (Response Body):
+``` json    
 {
-    "status": "int32" // 客户端返回: 0-成功处理推送
+    "success": "bool", // 是否成功 true: 成功, false: 失败
+    "code": "int32", // 状态码:[0:成功 业务错误：1000-4999 系统错误：5000-5999]
+    "message": "char[64]", // 消息描述
+    "data": "json", // 业务数据，根据不同接口有不同格式
+    "timestamp": "uint64" // 时间戳 (8字节无符号整数)
 }
-```
