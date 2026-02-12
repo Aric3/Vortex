@@ -1,0 +1,17 @@
+spring:
+    application:
+        name: vortex-core
+    datasource:
+        hikari:
+            connection-timeout: 30000
+            maximum-pool-size: 1
+        url: jdbc:sqlite:vortex.db
+        driver-class-name: org.sqlite.JDBC
+    threads:
+        virtual:
+            enabled: true
+    jpa:
+        hibernate:
+            ddl-auto: update
+        show-sql: true
+        
