@@ -149,7 +149,7 @@ timestamp: current timestamp in milliseconds
     "rejectCode": "int32", // 错误代码 (4字节整数)
     "rejectText": "char[64]" // 错误原因说明 (64字节字符串)
 }
-
+```
 - 响应 (Response Body):
 ``` json    
 {
@@ -177,7 +177,7 @@ timestamp: current timestamp in milliseconds
     "execQty": "uint32", // 本次成交数量 (4字节无符号整数)
     "execPrice": "double" // 本次成交价格 (8字节浮点数)
 }
-
+```
 - 响应 (Response Body):
 ``` json    
 {
@@ -205,6 +205,7 @@ timestamp: current timestamp in milliseconds
     "cumQty": "uint32", // 累计成交数量 (4字节无符号整数)
     "canceledQty": "uint32" // 本次撤单成功的数量 (4字节无符号整数)
 }
+```
 - 响应 (Response Body):
 ``` json    
 {
@@ -226,6 +227,7 @@ timestamp: current timestamp in milliseconds
     "rejectCode": "int32", // 错误代码 (4字节整数)
     "rejectText": "char[64]" // 错误原因说明 (64字节字符串)
 }
+```
 - 响应 (Response Body):
 ``` json    
 {
