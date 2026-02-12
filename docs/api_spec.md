@@ -77,37 +77,10 @@ timestamp: current timestamp in milliseconds
 }
 ```
 收到撤单请求后，只返回处理这个撤单请求的情况。data为空，因为此时还未真正将撤单提交到交易所，未收到交易所的确认。
-
---- 
-## 2. 行情相关接口（/api/v1/vmarket）
-### 2.1 接收行情信息
-- 请求方式：POST
-- 接口路径：/api/v1/vmarket
-- 请求体（request body）：
-``` json    
-{
-    "market": "char[4]", // 行情对应的市场 (4字节字符串) XSHG: 上交所, XSHE: 深交所, BJSE: 北交所
-    "securityId": "char[6]", // 行情对应的股票代码 (6字节字符串)
-    "bidPrice": "double", // 行情对应的最新买价 (8字节浮点数)
-    "askPrice": "double" // 行情对应的最新卖价 (8字节浮点数)
-}
-```
-
-- 响应 (Response Body):
-``` json    
-{
-    "success": "bool", // 是否成功 true: 成功, false: 失败
-    "code": "int32", // 状态码:[0:成功 业务错误：1000-4999 系统错误：5000-5999]
-    "message": "char[64]", // 消息描述
-    "data": "json", // 业务数据，根据不同接口有不同格式
-    "timestamp": "uint64" // 时间戳 (8字节无符号整数)
-}
-```
-
 ---
 
-## 3. 交易所相关接口（/api/v1/vexchange）
-### 3.1 订单确认回报
+## 2. 交易所相关接口（/api/v1/vexchange）
+### 2.1 订单确认回报    
 - 请求方式：POST
 - 接口路径：/api/v1/vexchange/ack/order-accept
 - 请求体（request body）：
@@ -133,7 +106,7 @@ timestamp: current timestamp in milliseconds
     "timestamp": "uint64" // 时间戳 (8字节无符号整数)
 }
 ```
-### 3.2 订单非法回报
+### 2.2 订单非法回报
 - 请求方式：POST
 - 接口路径：/api/v1/vexchange/ack/order-reject
 - 请求体（request body）：
@@ -160,7 +133,7 @@ timestamp: current timestamp in milliseconds
     "timestamp": "uint64" // 时间戳 (8字节无符号整数)
 }
 ```
-### 3.3 订单成交回报
+### 2.3 订单成交回报
 - 请求方式：POST
 - 接口路径：/api/v1/vexchange/ack/order-deal
 - 请求体（request body）：
@@ -188,7 +161,7 @@ timestamp: current timestamp in milliseconds
     "timestamp": "uint64" // 时间戳 (8字节无符号整数)
 }
 ```
-### 3.4 撤单确认回报
+### 2.4 撤单确认回报
 - 请求方式：POST
 - 接口路径：/api/v1/vexchange/ack/cancellation-accept
 - 请求体（request body）：
@@ -216,7 +189,7 @@ timestamp: current timestamp in milliseconds
     "timestamp": "uint64" // 时间戳 (8字节无符号整数)
 }
 ```
-### 3.5 撤单非法回报
+### 2.5 撤单非法回报
 - 请求方式：POST
 - 接口路径：/api/v1/vexchange/ack/cancellation-reject
 - 请求体（request body）：
