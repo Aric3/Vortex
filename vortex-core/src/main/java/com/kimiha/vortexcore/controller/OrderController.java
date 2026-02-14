@@ -6,6 +6,8 @@ import com.kimiha.vortexcore.service.TradingService;
 import java.util.List;
 
 import org.springframework.web.bind.annotation.*;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/api/v1/vclient")
@@ -19,7 +21,11 @@ public class OrderController {
     @PostMapping("/orders")
     public OrderEntity createOrder(@RequestBody OrderEntity order) {
         System.out.println("Handling request in: " + Thread.currentThread());
-        return tradingService.saveOrder(order);
+        try {
+            return tradingService.saveOrder(order);
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
+        }
     }
 
     @GetMapping("/orders")
