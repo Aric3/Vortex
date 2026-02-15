@@ -55,7 +55,7 @@ private final OrderRepository orderRepository;
         if (order.getQty() < 0) {
             throw new IllegalArgumentException("qty 非法");
         }
-        if (order.getPrice() == null || order.getPrice() < 0) {
+        if (order.getPrice() == null || order.getPrice() <= 0) {
             throw new IllegalArgumentException("price 非法");
         }
         if (order.getShareholderId() == null || order.getShareholderId().isEmpty() || order.getShareholderId().length() > 10) {

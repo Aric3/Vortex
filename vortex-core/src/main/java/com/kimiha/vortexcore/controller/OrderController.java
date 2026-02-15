@@ -1,13 +1,13 @@
 package com.kimiha.vortexcore.controller;
 
 import com.kimiha.vortexcore.model.OrderEntity;
+import com.kimiha.vortexcore.model.Result;
+import com.kimiha.vortexcore.model.ResultCode;
 import com.kimiha.vortexcore.service.TradingService;
 
 import java.util.List;
 
 import org.springframework.web.bind.annotation.*;
-import org.springframework.http.HttpStatus;
-import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/api/v1/vclient")
@@ -19,22 +19,30 @@ public class OrderController {
     }
 
     @PostMapping("/orders")
-    public OrderEntity createOrder(@RequestBody OrderEntity order) {
+    public Result createOrder(@RequestBody OrderEntity order) {
         System.out.println("Handling request in: " + Thread.currentThread());
         try {
-            return tradingService.saveOrder(order);
+            OrderEntity saved = tradingService.saveOrder(order);
+            return Result.ok(saved, "accepted");
         } catch (IllegalArgumentException e) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
+            return Result.fail(ResultCode.VALIDATION_ERROR, e.getMessage());
+        } catch (Exception e) {
+            return Result.fail(ResultCode.SYSTEM_ERROR, "system error");
         }
     }
 
     @GetMapping("/orders")
-    public List<OrderEntity> getAllOrders() {
-        return tradingService.findAll();
+    public Result getAllOrders() {
+        List<OrderEntity> all = tradingService.findAll();
+        return Result.ok(all, "success");
     }
 
     @GetMapping("/orders/{clOrderId}")
-    public OrderEntity getOrderByClOrderId(@PathVariable String clOrderId) {
-        return tradingService.findByClOrderId(clOrderId);
+    public Result getOrderByClOrderId(@PathVariable String clOrderId) {
+        OrderEntity found = tradingService.findByClOrderId(clOrderId);
+        if (found == null) {
+            return Result.fail(ResultCode.NOT_FOUND, "order not found");
+        }
+        return Result.ok(found, "success");
     }
 }
