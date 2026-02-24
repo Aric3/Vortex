@@ -1,6 +1,8 @@
 package com.kimiha.vortexcore.controller;
 
 import com.kimiha.vortexcore.model.OrderEntity;
+import com.kimiha.vortexcore.model.Result;
+import com.kimiha.vortexcore.model.ResultCode;
 import com.kimiha.vortexcore.service.TradingService;
 
 import java.util.List;
@@ -17,18 +19,30 @@ public class OrderController {
     }
 
     @PostMapping("/orders")
-    public OrderEntity createOrder(@RequestBody OrderEntity order) {
+    public Result createOrder(@RequestBody OrderEntity order) {
         System.out.println("Handling request in: " + Thread.currentThread());
-        return tradingService.saveOrder(order);
+        try {
+            tradingService.saveOrder(order);
+            return Result.success(java.util.Map.of(), "The order is valid and has been forwarded to the exchange.");
+        } catch (IllegalArgumentException e) {
+            return Result.fail(ResultCode.VALIDATION_ERROR, "Order validation failed: " + e.getMessage());
+        } catch (Exception e) {
+            return Result.fail(ResultCode.SYSTEM_ERROR, "System error");
+        }
     }
 
     @GetMapping("/orders")
-    public List<OrderEntity> getAllOrders() {
-        return tradingService.findAll();
+    public Result getAllOrders() {
+        List<OrderEntity> all = tradingService.findAll();
+        return Result.success(all, "Orders retrieved successfully");
     }
 
     @GetMapping("/orders/{clOrderId}")
-    public OrderEntity getOrderByClOrderId(@PathVariable String clOrderId) {
-        return tradingService.findByClOrderId(clOrderId);
+    public Result getOrderByClOrderId(@PathVariable String clOrderId) {
+        OrderEntity found = tradingService.findByClOrderId(clOrderId);
+        if (found == null) {
+            return Result.fail(ResultCode.NOT_FOUND, "Order not found");
+        }
+        return Result.success(found, "Order retrieved successfully");
     }
 }

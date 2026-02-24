@@ -10,18 +10,17 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class TradingService {
+    private final OrderRepository orderRepository;
+    private final OrderValidator orderValidator;
 
-
-
-private final OrderRepository orderRepository;
-
-    public TradingService(OrderRepository orderRepository) {
+    public TradingService(OrderRepository orderRepository, OrderValidator orderValidator) {
         this.orderRepository = orderRepository;
+        this.orderValidator = orderValidator;
     }
 
     @Transactional
     public OrderEntity saveOrder(OrderEntity order) {
-        // TODO: 基本的订单校验逻辑 实际不应该直接save到数据库
+        orderValidator.validate(order);
         return orderRepository.save(order);
     }
 
