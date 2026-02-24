@@ -10,7 +10,7 @@ public class Result {
     private Object data;
     private long timestamp;
 
-    public static Result ok(Object data, String message) {
+    public static Result success(Object data, String message) {
         Result r = new Result();
         r.success = true;
         r.code = ResultCode.SUCCESS.getCode();
@@ -20,8 +20,8 @@ public class Result {
         return r;
     }
 
-    public static Result ok(Object data) {
-        return ok(data, "OK");
+    public static Result success(Object data) {
+        return success(data, "OK");
     }
 
     public static Result fail(ResultCode code, String message) {

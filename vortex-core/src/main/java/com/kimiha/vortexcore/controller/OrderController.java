@@ -22,27 +22,27 @@ public class OrderController {
     public Result createOrder(@RequestBody OrderEntity order) {
         System.out.println("Handling request in: " + Thread.currentThread());
         try {
-            OrderEntity saved = tradingService.saveOrder(order);
-            return Result.ok(saved, "accepted");
+            tradingService.saveOrder(order);
+            return Result.success(java.util.Map.of(), "The order is valid and has been forwarded to the exchange.");
         } catch (IllegalArgumentException e) {
-            return Result.fail(ResultCode.VALIDATION_ERROR, e.getMessage());
+            return Result.fail(ResultCode.VALIDATION_ERROR, "Order validation failed: " + e.getMessage());
         } catch (Exception e) {
-            return Result.fail(ResultCode.SYSTEM_ERROR, "system error");
+            return Result.fail(ResultCode.SYSTEM_ERROR, "System error");
         }
     }
 
     @GetMapping("/orders")
     public Result getAllOrders() {
         List<OrderEntity> all = tradingService.findAll();
-        return Result.ok(all, "success");
+        return Result.success(all, "Orders retrieved successfully");
     }
 
     @GetMapping("/orders/{clOrderId}")
     public Result getOrderByClOrderId(@PathVariable String clOrderId) {
         OrderEntity found = tradingService.findByClOrderId(clOrderId);
         if (found == null) {
-            return Result.fail(ResultCode.NOT_FOUND, "order not found");
+            return Result.fail(ResultCode.NOT_FOUND, "Order not found");
         }
-        return Result.ok(found, "success");
+        return Result.success(found, "Order retrieved successfully");
     }
 }
