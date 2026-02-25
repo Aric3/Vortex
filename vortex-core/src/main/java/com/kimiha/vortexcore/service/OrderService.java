@@ -41,7 +41,7 @@ public class OrderService {
         if (order == null) {
             return ValidationResult.fail("order is null");
         }
-        if (order.getClOrderId() == null || order.getClOrderId().isEmpty() || order.getClOrderId().length() > 16) {
+        if (order.getClOrderId() == null || order.getClOrderId().length() != 16) {
             return ValidationResult.fail("clOrderId invalid");
         }
         if (order.getMarket() == null || order.getMarket().length() != 4 || !VALID_MARKETS.contains(order.getMarket())) {
@@ -59,7 +59,7 @@ public class OrderService {
         if (order.getPrice() == null || order.getPrice() <= 0) {
             return ValidationResult.fail("price invalid");
         }
-        if (order.getShareholderId() == null || order.getShareholderId().isEmpty() || order.getShareholderId().length() > 10) {
+        if (order.getShareholderId() == null || order.getShareholderId().length() != 10) {
             return ValidationResult.fail("shareholderId invalid");
         }
         return ValidationResult.pass();
