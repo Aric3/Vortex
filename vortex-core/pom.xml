@@ -13,7 +13,7 @@
 	<artifactId>vortex-core</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	<name>vortex-core</name>
-	<description>Demo project for Spring Boot</description>
+	<description>Wash Trading Risk Control and Matching System</description>
 	<url />
 	<licenses>
 		<license />
@@ -62,6 +62,13 @@
 		<dependency>
 			<groupId>org.hibernate.orm</groupId>
 			<artifactId>hibernate-community-dialects</artifactId>
+		</dependency>
+
+		<!-- Disruptor -->
+		<dependency>
+			<groupId>com.lmax</groupId>
+			<artifactId>disruptor</artifactId>
+			<version>4.0.0</version>
 		</dependency>
 
 		<!-- Netty -->
