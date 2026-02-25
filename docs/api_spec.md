@@ -16,9 +16,18 @@
 }
 ```
 - 响应体（response body）：
-未通过基础合法校验时，返回标准错误 Result（success=false, code=VALIDATION_ERROR），不返回订单确认或拒绝 DTO。
+未通过基础合法校验时，返回标准错误 Result（success=false, code=VALIDATION_ERROR），不返回订单确认或拒绝DTO。
+``` json
+{
+    "success":false,
+    "code":1999,
+    "message":"clOrderId invalid",
+    "data":{},
+    "timestamp":"uint64"
+}
+```
 
-通过基础合法校验时，表示请求已入队，返回**已提交**（订单确认/拒绝由异步对敲检测决定，通过 1.3 订单回报流 SSE 推送）：
+通过基础合法校验时，表示请求已入队，返回已提交（订单确认/拒绝由异步对敲检测决定，通过 1.3 订单回报流 SSE 推送）：
 ``` json
 {
     "success": true,
@@ -30,8 +39,6 @@
     "timestamp": "uint64"
 }
 ```
-订单确认回报（ORDER_CONFIRM）与订单拒绝回报（ORDER_REJECT，如对敲不通过）见 1.3 与第 2 节。
-
 
 ### 1.2 撤单
 - 请求方式：POST
@@ -57,14 +64,62 @@
     "timestamp": "uint64" // 时间戳 (8字节无符号整数)
 }
 ```
-收到撤单请求后，只返回处理这个撤单请求的情况。data为空，因为此时异步线程去处理撤单
+收到撤单请求后，返回请求已提交。data为空，此时异步线程去处理撤单，然后推送回报。
 
 ### 1.3 订单回报流（SSE）
 - 请求方式：GET
-- 接口路径：/api/v1/vclient/stream/reports
+- 接口路径：/api/v1/vclient/stream/reports?shareholderId=
 - 查询参数：shareholderId（必填，股东号）
 - 响应：`Content-Type: text/event-stream`，长连接。服务端向该股东推送异步回报（JSON 封装在 `OrderReportEnvelope`：`reportType` + `data`），包括：订单确认（ORDER_CONFIRM）、订单拒绝（ORDER_REJECT，如对敲不通过）、订单成交（ORDER_EXECUTION）、撤单确认（CANCEL_CONFIRM）、撤单拒绝（CANCEL_REJECT）。客户端需先建立此连接，再下单/撤单，才能实时收到确认/拒绝与成交回报。
 
+### 1.4 查询订单簿
+- 请求方式：GET（单次查询）
+- 接口路径： /api/v1/vclient/orderbook/{securityId}?depth=10
+- 查询参数：securityId（股票代码）depth（查询深度）
+- 响应：
+   ``` json
+   {
+    "securityId": "600030",
+    "bids": [
+        {
+            "price": 25.85,
+            "totalQty": 1791,
+            "orderCount": 2
+        },
+        {
+            "price": 25.0,
+            "totalQty": 1000,
+            "orderCount": 1
+        }
+    ],
+    "asks": [],
+    "timestamp": 1772023126873
+}
+   ```
+
+- 请求方式：GET（SSE推送）
+- 接口路径： /api/v1/vclient/orderbook/{securityId}/stream?depth=
+- 查询参数：securityId（股票代码）depth（查询深度）
+- 响应：
+   ``` json
+   {
+    "securityId": "600030",
+    "bids": [
+        {
+            "price": 25.85,
+            "totalQty": 1791,
+            "orderCount": 2
+        },
+        {
+            "price": 25.0,
+            "totalQty": 1000,
+            "orderCount": 1
+        }
+    ],
+    "asks": [],
+    "timestamp": 1772023126873
+}
+   ```
 ---
 
 ## 2. 异步回报类型
