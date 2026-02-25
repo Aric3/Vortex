@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 
 @RestController
-@RequestMapping("/api/v1")
+@RequestMapping("/api/v1/vclient")
 public class OrderBookController {
 
     private static final int DEFAULT_DEPTH = 10;

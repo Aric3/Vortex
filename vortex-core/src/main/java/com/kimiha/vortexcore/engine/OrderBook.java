@@ -14,6 +14,9 @@ public class OrderBook {
     private final Map<String, TreeMap<Double, Integer>> shareholderBids = new HashMap<>();
     private final Map<String, TreeMap<Double, Integer>> shareholderAsks = new HashMap<>();
 
+    // 当前在簿挂单的 clOrderId 集合，用于 O(1) 唯一性检测
+    private final Set<String> existingClOrderIds = new HashSet<>();
+
     public OrderBook(String securityId) {
         this.securityId = securityId;
     }
@@ -51,6 +54,17 @@ public class OrderBook {
             a++;
         }
         return new OrderBookSnapshot(securityId, bidLevels, askLevels, System.currentTimeMillis());
+    }
+
+    /**
+     * 检测 clOrderId 是否在当前订单簿中已存在（不合法）。
+     * 若 order 或 clOrderId 为空，返回 false，由上层校验。
+     */
+    public boolean illegalClOrderId(OrderEntity order) {
+        if (order == null || order.getClOrderId() == null) {
+            return false;
+        }
+        return existingClOrderIds.contains(order.getClOrderId());
     }
 
     /**
@@ -104,15 +118,18 @@ public class OrderBook {
                 OrderEntity maker = iterator.next();
                 // 成交数量：新订单剩余量和对手盘剩余量中的较小值
                 int tradeQty = Math.min(newOrder.getQty(), maker.getQty());
+                int makerOriginalQty = maker.getQty();
 
-                tradeResults.add(new TradeResult(newOrder.getClOrderId(), maker.getClOrderId(), bestPrice, tradeQty,
-                        securityId));
+                tradeResults.add(new TradeResult(
+                        newOrder.getClOrderId(), maker.getClOrderId(), bestPrice, tradeQty, securityId,
+                        maker.getSide(), maker.getShareholderId(), makerOriginalQty, maker.getPrice()));
 
                 newOrder.setQty(newOrder.getQty() - tradeQty);
                 maker.setQty(maker.getQty() - tradeQty);
 
                 if (maker.getQty() == 0) {
                     iterator.remove();
+                    existingClOrderIds.remove(maker.getClOrderId());
                     updateShareholderIndex(maker, false); // 从索引中移除已成交完的maker订单
                 }
             }
@@ -124,6 +141,9 @@ public class OrderBook {
         if (newOrder.getQty() > 0) {
             TreeMap<Double, LinkedList<OrderEntity>> mySide = "B".equals(newOrder.getSide()) ? bids : asks;
             mySide.computeIfAbsent(newOrder.getPrice(), k -> new LinkedList<>()).add(newOrder);
+            if (newOrder.getClOrderId() != null) {
+                existingClOrderIds.add(newOrder.getClOrderId());
+            }
             updateShareholderIndex(newOrder, true); // 添加到股东价格索引
         }
         return tradeResults;
