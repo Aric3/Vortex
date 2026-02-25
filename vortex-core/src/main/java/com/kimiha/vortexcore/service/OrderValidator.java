@@ -14,7 +14,7 @@ public class OrderValidator {
         if (order == null) {
             throw new IllegalArgumentException("order is null");
         }
-        if (order.getClOrderId() == null || order.getClOrderId().isEmpty() || order.getClOrderId().length() > 16) {
+        if (order.getClOrderId() == null || order.getClOrderId().length() != 16) {
             throw new IllegalArgumentException("clOrderId invalid");
         }
         if (order.getMarket() == null || order.getMarket().length() != 4 || !VALID_MARKETS.contains(order.getMarket())) {
@@ -32,7 +32,7 @@ public class OrderValidator {
         if (order.getPrice() == null || order.getPrice() <= 0) {
             throw new IllegalArgumentException("price invalid");
         }
-        if (order.getShareholderId() == null || order.getShareholderId().isEmpty() || order.getShareholderId().length() > 10) {
+        if (order.getShareholderId() == null || order.getShareholderId().length() != 10) {
             throw new IllegalArgumentException("shareholderId invalid");
         }
     }
