@@ -5,6 +5,13 @@ import com.kimiha.vortexcore.engine.OrderBook;
 import com.kimiha.vortexcore.engine.OrderBookChangedEvent;
 import com.kimiha.vortexcore.engine.TradeResult;
 import com.kimiha.vortexcore.model.OrderEntity;
+import com.kimiha.vortexcore.model.ResultCode;
+import com.kimiha.vortexcore.model.dto.OrderConfirmDto;
+import com.kimiha.vortexcore.model.dto.OrderExecutionDto;
+import com.kimiha.vortexcore.model.dto.OrderRejectDto;
+import com.kimiha.vortexcore.model.dto.OrderReportEnvelope;
+import com.kimiha.vortexcore.service.OrderReportStreamService;
+import com.kimiha.vortexcore.service.tools.ExecIdGenerator;
 import com.lmax.disruptor.EventHandler;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
@@ -13,12 +20,19 @@ import java.util.List;
 
 @Component
 public class OrderEventHandler implements EventHandler<OrderEvent> {
+
+    private static final String REJECT_TEXT_WASH_TRADE = "Wash trade rejected";
+    private static final String REJECT_TEXT_DUPLICATE_CL_ORDER_ID = "Duplicate clOrderId";
+
     private final MatchingEngine matchingEngine;
     private final ApplicationEventPublisher eventPublisher;
+    private final OrderReportStreamService reportStreamService;
 
-    public OrderEventHandler(MatchingEngine matchingEngine, ApplicationEventPublisher eventPublisher) {
+    public OrderEventHandler(MatchingEngine matchingEngine, ApplicationEventPublisher eventPublisher,
+                             OrderReportStreamService reportStreamService) {
         this.matchingEngine = matchingEngine;
         this.eventPublisher = eventPublisher; // 可为 null，测试时不推送
+        this.reportStreamService = reportStreamService;
     }
 
     @Override
@@ -27,16 +41,94 @@ public class OrderEventHandler implements EventHandler<OrderEvent> {
         String securityId = order.getSecurityId();
         OrderBook book = matchingEngine.getOrderBook(securityId);
 
-        if (book.isWashTrading(order)) {
-            System.err.println("Blocking Wash Trade: " + order.getClOrderId());
+        if (book.illegalClOrderId(order)) {
+            if (reportStreamService != null) {
+                OrderRejectDto rejectDto = OrderRejectDto.builder()
+                        .clOrderId(order.getClOrderId())
+                        .market(order.getMarket())
+                        .securityId(securityId)
+                        .side(order.getSide())
+                        .qty(order.getQty())
+                        .price(order.getPrice())
+                        .shareholderId(order.getShareholderId())
+                        .rejectCode(ResultCode.DUPLICATE_CL_ORDER_ID.getCode())
+                        .rejectText(REJECT_TEXT_DUPLICATE_CL_ORDER_ID)
+                        .build();
+                reportStreamService.pushReport(order.getShareholderId(),
+                        new OrderReportEnvelope(OrderRejectDto.REPORT_TYPE, rejectDto));
+            }
             return;
         }
 
+        if (book.isWashTrading(order)) {
+            if (reportStreamService != null) {
+                OrderRejectDto rejectDto = OrderRejectDto.builder()
+                        .clOrderId(order.getClOrderId())
+                        .market(order.getMarket())
+                        .securityId(securityId)
+                        .side(order.getSide())
+                        .qty(order.getQty())
+                        .price(order.getPrice())
+                        .shareholderId(order.getShareholderId())
+                        .rejectCode(ResultCode.WASH_TRADE_REJECT.getCode())
+                        .rejectText(REJECT_TEXT_WASH_TRADE)
+                        .build();
+                reportStreamService.pushReport(order.getShareholderId(),
+                        new OrderReportEnvelope(OrderRejectDto.REPORT_TYPE, rejectDto));
+            }
+            return;
+        }
+
+        if (reportStreamService != null) {
+            OrderConfirmDto confirmDto = OrderConfirmDto.builder()
+                    .clOrderId(order.getClOrderId())
+                    .market(order.getMarket())
+                    .securityId(securityId)
+                    .side(order.getSide())
+                    .qty(order.getQty())
+                    .price(order.getPrice())
+                    .shareholderId(order.getShareholderId())
+                    .build();
+            reportStreamService.pushReport(order.getShareholderId(),
+                    new OrderReportEnvelope(OrderConfirmDto.REPORT_TYPE, confirmDto));
+        }
+
+        int takerOriginalQty = order.getQty();
         List<TradeResult> tradeResults = book.executeMatch(order);
-        if (!tradeResults.isEmpty()) {
+
+        if (!tradeResults.isEmpty() && reportStreamService != null) {
             for (TradeResult tr : tradeResults) {
-                System.out.println("Trade: " + tr.getTakerClOrderId() + " vs " + tr.getMakerClOrderId()
-                        + " @ " + tr.getPrice() + " x " + tr.getQty());
+                String execId = ExecIdGenerator.next();
+                // Taker 成交回报
+                OrderExecutionDto takerReport = OrderExecutionDto.builder()
+                        .clOrderId(tr.getTakerClOrderId())
+                        .market(order.getMarket())
+                        .securityId(securityId)
+                        .side(order.getSide())
+                        .qty(takerOriginalQty)
+                        .price(order.getPrice())
+                        .shareholderId(order.getShareholderId())
+                        .execId(execId)
+                        .execQty(tr.getQty())
+                        .execPrice(tr.getPrice())
+                        .build();
+                reportStreamService.pushReport(order.getShareholderId(),
+                        new OrderReportEnvelope(OrderExecutionDto.REPORT_TYPE, takerReport));
+                // Maker 成交回报
+                OrderExecutionDto makerReport = OrderExecutionDto.builder()
+                        .clOrderId(tr.getMakerClOrderId())
+                        .market(order.getMarket())
+                        .securityId(securityId)
+                        .side(tr.getMakerSide())
+                        .qty(tr.getMakerOriginalQty())
+                        .price(tr.getMakerPrice())
+                        .shareholderId(tr.getMakerShareholderId())
+                        .execId(execId)
+                        .execQty(tr.getQty())
+                        .execPrice(tr.getPrice())
+                        .build();
+                reportStreamService.pushReport(tr.getMakerShareholderId(),
+                        new OrderReportEnvelope(OrderExecutionDto.REPORT_TYPE, makerReport));
             }
         }
 

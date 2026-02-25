@@ -2,12 +2,10 @@ package com.kimiha.vortexcore.disruptor;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.mock;
 
 import com.kimiha.vortexcore.engine.MatchingEngine;
 import com.kimiha.vortexcore.engine.OrderBook;
 import com.kimiha.vortexcore.model.OrderEntity;
-import org.springframework.context.ApplicationEventPublisher;
 import com.lmax.disruptor.RingBuffer;
 import com.lmax.disruptor.YieldingWaitStrategy;
 import com.lmax.disruptor.dsl.Disruptor;
@@ -38,7 +36,7 @@ class DisruptorOrderProcessingTest {
     @Test
     void publishEvent_asyncHandlerProcesses_orderRestsOnBook() throws InterruptedException {
         MatchingEngine matchingEngine = new MatchingEngine();
-        OrderEventHandler handler = new OrderEventHandler(matchingEngine, null);
+        OrderEventHandler handler = new OrderEventHandler(matchingEngine, null, null);
         CountDownLatch latch = new CountDownLatch(1);
 
         int bufferSize = 16;
@@ -72,7 +70,7 @@ class DisruptorOrderProcessingTest {
     @Test
     void publishTwoOppositeOrders_bothProcessed_matchResult() throws InterruptedException {
         MatchingEngine matchingEngine = new MatchingEngine();
-        OrderEventHandler handler = new OrderEventHandler(matchingEngine, null);
+        OrderEventHandler handler = new OrderEventHandler(matchingEngine, null, null);
         CountDownLatch latch = new CountDownLatch(2);
 
         int bufferSize = 16;

@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 
 @RestController
-@RequestMapping("/api/v1")
+@RequestMapping("/api/v1/vclient")
 public class OrderBookController {
 
     private static final int DEFAULT_DEPTH = 10;
@@ -24,7 +24,7 @@ public class OrderBookController {
 
     /**
      * 查询订单簿快照（轮询用）
-     * GET /api/v1/orderbook/{securityId}?depth=10
+     * GET /api/v1/vclient/orderbook/{securityId}?depth=10
      */
     @GetMapping("/orderbook/{securityId}")
     public Result getSnapshot(
@@ -37,10 +37,11 @@ public class OrderBookController {
 
     /**
      * 实时订单簿流：连接后先收到当前快照，之后每次变动推送新快照（SSE）
-     * GET /api/v1/orderbook/{securityId}/stream
+     * GET /api/v1/vclient/orderbook/{securityId}/stream?depth=10
      */
     @GetMapping(value = "/orderbook/{securityId}/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public Flux<OrderBookSnapshot> stream(@PathVariable String securityId) {
-        return streamService.stream(securityId);
+    public Flux<OrderBookSnapshot> stream(@PathVariable String securityId,@RequestParam(defaultValue = "10") int depth) {
+        if (depth <= 0 || depth > 50) depth = DEFAULT_DEPTH;
+        return streamService.stream(securityId, depth);
     }
 }

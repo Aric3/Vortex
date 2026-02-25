@@ -4,6 +4,7 @@ import com.kimiha.vortexcore.disruptor.OrderEvent;
 import com.kimiha.vortexcore.model.OrderEntity;
 import com.kimiha.vortexcore.model.ProcessOrderResult;
 import com.kimiha.vortexcore.model.ValidationResult;
+import com.kimiha.vortexcore.model.dto.OrderSubmittedDto;
 import com.kimiha.vortexcore.repository.OrderRepository;
 import com.lmax.disruptor.RingBuffer;
 import com.lmax.disruptor.dsl.Disruptor;
@@ -30,11 +31,12 @@ public class OrderService {
     public ProcessOrderResult processOrder(OrderEntity order) {
         ValidationResult validation = validateOrder(order);
         if (!validation.isSuccess()) {
-            return new ProcessOrderResult(validation, order);
+            return new ProcessOrderResult(validation, null);
         }
         RingBuffer<OrderEvent> ringBuffer = disruptor.getRingBuffer();
         ringBuffer.publishEvent((event, sequence) -> event.setOrder(order));
-        return new ProcessOrderResult(ValidationResult.pass(), order);
+        return new ProcessOrderResult(ValidationResult.pass(),
+                OrderSubmittedDto.builder().clOrderId(order.getClOrderId()).build());
     }
 
     public ValidationResult validateOrder(OrderEntity order) {
