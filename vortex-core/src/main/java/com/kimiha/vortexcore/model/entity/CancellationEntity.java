@@ -1,4 +1,4 @@
-package com.kimiha.vortexcore.model;
+package com.kimiha.vortexcore.model.entity;
 
 import java.time.LocalDateTime;
 
@@ -28,8 +28,23 @@ public class CancellationEntity {
 
     private LocalDateTime createTime; // 创建时间
 
+    /** 撤单是否成功（处理完成后由持久化层更新） */
+    private Boolean success;
+    /** 撤单成功时的撤单数量 */
+    private Integer canceledQty;
+    /** 撤单成功时该订单的累计成交量 */
+    private Integer cumQty;
+    /** 撤单拒绝时的错误码 */
+    private Integer rejectCode;
+    /** 撤单拒绝时的错误说明 */
+    private String rejectText;
+    private LocalDateTime updatedTime;
+
     @PrePersist
     protected void onCreate() {
         createTime = LocalDateTime.now();
+        if (updatedTime == null) {
+            updatedTime = createTime;
+        }
     }
 }

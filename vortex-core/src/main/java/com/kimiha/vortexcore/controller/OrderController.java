@@ -1,16 +1,18 @@
 package com.kimiha.vortexcore.controller;
 
-import com.kimiha.vortexcore.model.OrderEntity;
-import com.kimiha.vortexcore.model.CancellationEntity;
 import com.kimiha.vortexcore.model.ProcessOrderResult;
 import com.kimiha.vortexcore.model.Result;
 import com.kimiha.vortexcore.model.ResultCode;
 import com.kimiha.vortexcore.model.ValidationResult;
 import com.kimiha.vortexcore.model.dto.OrderReportEnvelope;
+import com.kimiha.vortexcore.model.dto.OrderResponse;
+import com.kimiha.vortexcore.model.dto.CancelRequest;
+import com.kimiha.vortexcore.model.dto.OrderSubmitRequest;
 import com.kimiha.vortexcore.service.OrderReportStreamService;
 import com.kimiha.vortexcore.service.OrderService;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
@@ -28,8 +30,8 @@ public class OrderController {
     }
 
     @PostMapping("/orders")
-    public Result createOrder(@RequestBody OrderEntity order) {
-        ProcessOrderResult result = orderService.processOrder(order);
+    public Result createOrder(@RequestBody OrderSubmitRequest request) {
+        ProcessOrderResult result = orderService.processOrder(request);
         if (!result.isSuccess()) {
             return Result.fail(ResultCode.VALIDATION_ERROR, "Order validation failed: " + result.getErrorMessage());
         }
@@ -38,13 +40,15 @@ public class OrderController {
 
     @GetMapping("/orders")
     public Result getAllOrders() {
-        List<OrderEntity> all = orderService.findAll();
+        List<OrderResponse> all = orderService.findAll().stream()
+                .map(OrderResponse::fromEntity)
+                .collect(Collectors.toList());
         return Result.success(all, "Orders retrieved successfully");
     }
 
     @PostMapping("/orders/cancel")
-    public Result cancelOrder(@RequestBody CancellationEntity cancellation) {
-        ValidationResult validation = orderService.cancelOrder(cancellation);
+    public Result cancelOrder(@RequestBody CancelRequest cancelRequest) {
+        ValidationResult validation = orderService.cancelOrder(cancelRequest);
         if (!validation.isSuccess()) {
             return Result.fail(ResultCode.VALIDATION_ERROR, validation.getMessage());
         }
@@ -53,11 +57,11 @@ public class OrderController {
 
     @GetMapping("/orders/{clOrderId}")
     public Result getOrderByClOrderId(@PathVariable String clOrderId) {
-        OrderEntity found = orderService.findByClOrderId(clOrderId);
+        var found = orderService.findByClOrderId(clOrderId);
         if (found == null) {
             return Result.fail(ResultCode.NOT_FOUND, "Order not found");
         }
-        return Result.success(found, "Order retrieved successfully");
+        return Result.success(OrderResponse.fromEntity(found), "Order retrieved successfully");
     }
 
     /**

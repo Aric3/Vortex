@@ -1,3 +1,7 @@
+server:
+    # 关闭时立即停止，不等待活跃请求（避免 SSE /stream/reports 长连接导致卡住 30 秒）
+    shutdown: immediate
+
 spring:
     application:
         name: vortex-core

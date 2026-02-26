@@ -1,15 +1,19 @@
 package com.kimiha.vortexcore.engine;
 
-import com.kimiha.vortexcore.model.CancellationEntity;
-import com.kimiha.vortexcore.model.OrderEntity;
+import com.kimiha.vortexcore.model.entity.CancellationEntity;
+import com.kimiha.vortexcore.model.OrderStateMachine;
+import com.kimiha.vortexcore.model.OrderStatus;
+import com.kimiha.vortexcore.model.domain.Order;
+
+import java.time.LocalDateTime;
 import java.util.*;
 
 public class OrderBook {
     private final String securityId;
 
     // 交易所标准盘口 买单：价格从高到低排序 卖单：价格从低到高排序
-    private final TreeMap<Double, LinkedList<OrderEntity>> bids = new TreeMap<>(Collections.reverseOrder());
-    private final TreeMap<Double, LinkedList<OrderEntity>> asks = new TreeMap<>();
+    private final TreeMap<Double, LinkedList<Order>> bids = new TreeMap<>(Collections.reverseOrder());
+    private final TreeMap<Double, LinkedList<Order>> asks = new TreeMap<>();
 
     // 股东价格索引 shareholderId -> {price -> order count}
     private final Map<String, TreeMap<Double, Integer>> shareholderBids = new HashMap<>();
@@ -27,8 +31,8 @@ public class OrderBook {
      */
     public int getRestingOrderCount() {
         int count = 0;
-        for (LinkedList<OrderEntity> queue : bids.values()) count += queue.size();
-        for (LinkedList<OrderEntity> queue : asks.values()) count += queue.size();
+        for (LinkedList<Order> queue : bids.values()) count += queue.size();
+        for (LinkedList<Order> queue : asks.values()) count += queue.size();
         return count;
     }
 
@@ -38,19 +42,19 @@ public class OrderBook {
     public OrderBookSnapshot getSnapshot(int depth) {
         List<OrderBookLevel> bidLevels = new ArrayList<>();
         int b = 0;
-        for (Map.Entry<Double, LinkedList<OrderEntity>> e : bids.entrySet()) {
+        for (Map.Entry<Double, LinkedList<Order>> e : bids.entrySet()) {
             if (b >= depth) break;
             long qty = 0;
-            for (OrderEntity o : e.getValue()) qty += o.getQty();
+            for (Order o : e.getValue()) qty += o.getQty();
             bidLevels.add(new OrderBookLevel(e.getKey(), qty, e.getValue().size()));
             b++;
         }
         List<OrderBookLevel> askLevels = new ArrayList<>();
         int a = 0;
-        for (Map.Entry<Double, LinkedList<OrderEntity>> e : asks.entrySet()) {
+        for (Map.Entry<Double, LinkedList<Order>> e : asks.entrySet()) {
             if (a >= depth) break;
             long qty = 0;
-            for (OrderEntity o : e.getValue()) qty += o.getQty();
+            for (Order o : e.getValue()) qty += o.getQty();
             askLevels.add(new OrderBookLevel(e.getKey(), qty, e.getValue().size()));
             a++;
         }
@@ -61,7 +65,7 @@ public class OrderBook {
      * 检测 clOrderId 是否在当前订单簿中已存在（不合法）。
      * 若 order 或 clOrderId 为空，返回 false，由上层校验。
      */
-    public boolean illegalClOrderId(OrderEntity order) {
+    public boolean illegalClOrderId(Order order) {
         if (order == null || order.getClOrderId() == null) {
             return false;
         }
@@ -71,7 +75,7 @@ public class OrderBook {
     /**
      * 券商前置风控 检测是否存在对敲风险
      */
-    public boolean isWashTrading(OrderEntity newOrder) {
+    public boolean isWashTrading(Order newOrder) {
         String sid = newOrder.getShareholderId();
         double price = newOrder.getPrice();
 
@@ -94,14 +98,15 @@ public class OrderBook {
     }
 
     /**
-     * 交易所撮合引擎 执行撮合逻辑
+     * 交易所撮合引擎 执行撮合逻辑；返回成交明细与状态/累计量发生变化的订单（taker + makers）。
      */
-    public List<TradeResult> executeMatch(OrderEntity newOrder) {
+    public MatchResult executeMatch(Order newOrder) {
         List<TradeResult> tradeResults = new ArrayList<>();
+        List<Order> ordersUpdated = new ArrayList<>();
         // 对手盘
-        TreeMap<Double, LinkedList<OrderEntity>> counterParties = "B".equals(newOrder.getSide()) ? asks : bids;
+        TreeMap<Double, LinkedList<Order>> counterParties = "B".equals(newOrder.getSide()) ? asks : bids;
 
-        // 1. 尝试撮合：对手盘不为空且新订单还有剩余量
+        // 尝试撮合：对手盘不为空且新订单还有剩余量
         while (!counterParties.isEmpty() && newOrder.getQty() > 0) {
             Double bestPrice = counterParties.firstKey();
             // 买单：新订单价格 < 对手盘最低价
@@ -111,13 +116,13 @@ public class OrderBook {
             if ("S".equals(newOrder.getSide()) && newOrder.getPrice() > bestPrice)
                 break;
 
-            LinkedList<OrderEntity> queue = counterParties.get(bestPrice);
-            Iterator<OrderEntity> iterator = queue.iterator();
+            LinkedList<Order> queue = counterParties.get(bestPrice);
+            Iterator<Order> iterator = queue.iterator();
 
             // 吃单：新订单还有剩余量且对手盘还有剩余量
             // TODO: 成交价最优原则，需要优化成交价生成算法
             while (iterator.hasNext() && newOrder.getQty() > 0) {
-                OrderEntity maker = iterator.next();
+                Order maker = iterator.next();
                 // 成交数量：新订单剩余量和对手盘剩余量中的较小值
                 int tradeQty = Math.min(newOrder.getQty(), maker.getQty());
                 int makerOriginalQty = maker.getQty();
@@ -127,9 +132,15 @@ public class OrderBook {
                         maker.getSide(), maker.getShareholderId(), makerOriginalQty, maker.getPrice()));
 
                 newOrder.setQty(newOrder.getQty() - tradeQty);
+                newOrder.setCumQty(newOrder.getCumQty() + tradeQty);
+
                 maker.setQty(maker.getQty() - tradeQty);
+                maker.setCumQty(maker.getCumQty() + tradeQty);
+                maker.setUpdatedTime(LocalDateTime.now());
+                ordersUpdated.add(maker);
 
                 if (maker.getQty() == 0) {
+                    OrderStateMachine.transition(maker, OrderStatus.Filled);
                     iterator.remove();
                     existingClOrderIds.remove(maker.getClOrderId());
                     updateShareholderIndex(maker, false); // 从索引中移除已成交完的maker订单
@@ -139,28 +150,33 @@ public class OrderBook {
                 counterParties.remove(bestPrice);
         }
 
-        // 2. 剩余部分进入挂单
+        // 2. 剩余部分进入挂单；设置 taker 终态
         if (newOrder.getQty() > 0) {
-            TreeMap<Double, LinkedList<OrderEntity>> mySide = "B".equals(newOrder.getSide()) ? bids : asks;
+            OrderStateMachine.transition(newOrder, OrderStatus.PartiallyFilled);
+            TreeMap<Double, LinkedList<Order>> mySide = "B".equals(newOrder.getSide()) ? bids : asks;
             mySide.computeIfAbsent(newOrder.getPrice(), k -> new LinkedList<>()).add(newOrder);
             if (newOrder.getClOrderId() != null) {
                 existingClOrderIds.add(newOrder.getClOrderId());
             }
             updateShareholderIndex(newOrder, true); // 添加到股东价格索引
+        } else {
+            OrderStateMachine.transition(newOrder, OrderStatus.Filled);
         }
-        return tradeResults;
+        ordersUpdated.add(newOrder);
+        return new MatchResult(tradeResults, ordersUpdated);
     }
 
     /**
      * 按客户端订单号撤单：从订单簿中移除该挂单，并更新股东价格索引。
      *
      * @param cancellation 撤单请求
-     * @return 被撤掉的订单实体（含 qty/price 等用于回报）；若未找到则返回 null
+     * @return 被撤掉的订单（含 qty/price 等用于回报）；若未找到则返回 null
      */
-    public OrderEntity cancelByClOrderId(CancellationEntity cancellation) {
-        TreeMap<Double, LinkedList<OrderEntity>> sideMap = "B".equals(cancellation.getSide()) ? bids : asks;
-        OrderEntity removed = removeFromSide(cancellation.getOrigClOrderId(), sideMap);
+    public Order cancelByClOrderId(CancellationEntity cancellation) {
+        TreeMap<Double, LinkedList<Order>> sideMap = "B".equals(cancellation.getSide()) ? bids : asks;
+        Order removed = removeFromSide(cancellation.getOrigClOrderId(), sideMap);
         if (removed != null) {
+            OrderStateMachine.transition(removed, OrderStatus.Canceled);
             existingClOrderIds.remove(cancellation.getOrigClOrderId());
             updateShareholderIndex(removed, false);
         }
@@ -173,13 +189,13 @@ public class OrderBook {
      * @param side 订单簿方向（买单或卖单）
      * @return 被移除的订单实体；若未找到则返回 null
      */
-    private OrderEntity removeFromSide(String clOrderId, TreeMap<Double, LinkedList<OrderEntity>> side) {
-        OrderEntity removed = null;
+    private Order removeFromSide(String clOrderId, TreeMap<Double, LinkedList<Order>> side) {
+        Order removed = null;
         Double emptyKey = null;
-        for (Map.Entry<Double, LinkedList<OrderEntity>> e : side.entrySet()) {
-            Iterator<OrderEntity> it = e.getValue().iterator();
+        for (Map.Entry<Double, LinkedList<Order>> e : side.entrySet()) {
+            Iterator<Order> it = e.getValue().iterator();
             while (it.hasNext()) {
-                OrderEntity o = it.next();
+                Order o = it.next();
                 if (clOrderId.equals(o.getClOrderId())) {
                     it.remove();
                     removed = o;
@@ -199,7 +215,7 @@ public class OrderBook {
      * @param order 需要处理的订单实体
      * @param isAdd true 代表订单进入挂单（新增索引），false 代表订单成交或撤单（移除索引）
      */
-    private void updateShareholderIndex(OrderEntity order, boolean isAdd) {
+    private void updateShareholderIndex(Order order, boolean isAdd) {
         String sid = order.getShareholderId();
         Double price = order.getPrice();
         boolean isBuy = "B".equals(order.getSide());

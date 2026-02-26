@@ -8,8 +8,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.kimiha.vortexcore.disruptor.OrderEvent;
-import com.kimiha.vortexcore.model.OrderEntity;
+import com.kimiha.vortexcore.model.entity.OrderEntity;
 import com.kimiha.vortexcore.model.ValidationResult;
+import com.kimiha.vortexcore.model.domain.Order;
 import com.kimiha.vortexcore.repository.OrderRepository;
 import com.lmax.disruptor.RingBuffer;
 import com.lmax.disruptor.dsl.Disruptor;
@@ -45,7 +46,7 @@ class TradingServiceValidationTest {
     @Test
     void validate_validOrder_passes() {
         OrderEntity order = validOrder("ORD0000000000001");
-        ValidationResult validation = tradingService.validateOrder(order);
+        ValidationResult validation = tradingService.validateOrder(Order.fromEntity(order));
         assertTrue(validation.isSuccess());
     }
 
@@ -60,7 +61,7 @@ class TradingServiceValidationTest {
     void validate_clOrderIdEmpty_fails() {
         OrderEntity order = validOrder("ORD0000000000002");
         order.setClOrderId("");
-        ValidationResult validation = tradingService.validateOrder(order);
+        ValidationResult validation = tradingService.validateOrder(Order.fromEntity(order));
         assertFalse(validation.isSuccess());
         assertTrue(validation.getMessage().contains("clOrderId"));
     }
@@ -69,7 +70,7 @@ class TradingServiceValidationTest {
     void validate_marketInvalidValue_fails() {
         OrderEntity order = validOrder("ORD0000000000003");
         order.setMarket("ABCD");
-        ValidationResult validation = tradingService.validateOrder(order);
+        ValidationResult validation = tradingService.validateOrder(Order.fromEntity(order));
         assertFalse(validation.isSuccess());
         assertTrue(validation.getMessage().contains("market"));
     }
@@ -78,7 +79,7 @@ class TradingServiceValidationTest {
     void validate_marketWrongLength_fails() {
         OrderEntity order = validOrder("ORD0000000000004");
         order.setMarket("XSHEE");
-        ValidationResult validation = tradingService.validateOrder(order);
+        ValidationResult validation = tradingService.validateOrder(Order.fromEntity(order));
         assertFalse(validation.isSuccess());
         assertTrue(validation.getMessage().contains("market"));
     }
@@ -87,7 +88,7 @@ class TradingServiceValidationTest {
     void validate_sideInvalid_fails() {
         OrderEntity order = validOrder("ORD0000000000005");
         order.setSide("X");
-        ValidationResult validation = tradingService.validateOrder(order);
+        ValidationResult validation = tradingService.validateOrder(Order.fromEntity(order));
         assertFalse(validation.isSuccess());
         assertTrue(validation.getMessage().contains("side"));
     }
@@ -96,7 +97,7 @@ class TradingServiceValidationTest {
     void validate_securityIdInvalidFormat_fails() {
         OrderEntity order = validOrder("ORD0000000000006");
         order.setSecurityId("60A030");
-        ValidationResult validation = tradingService.validateOrder(order);
+        ValidationResult validation = tradingService.validateOrder(Order.fromEntity(order));
         assertFalse(validation.isSuccess());
         assertTrue(validation.getMessage().contains("securityId"));
     }
@@ -105,7 +106,7 @@ class TradingServiceValidationTest {
     void validate_qtyNegative_fails() {
         OrderEntity order = validOrder("ORD0000000000007");
         order.setQty(-1);
-        ValidationResult validation = tradingService.validateOrder(order);
+        ValidationResult validation = tradingService.validateOrder(Order.fromEntity(order));
         assertFalse(validation.isSuccess());
         assertTrue(validation.getMessage().contains("qty"));
     }
@@ -114,7 +115,7 @@ class TradingServiceValidationTest {
     void validate_qtyZero_passes() {
         OrderEntity order = validOrder("ORD0000000000008");
         order.setQty(0);
-        ValidationResult validation = tradingService.validateOrder(order);
+        ValidationResult validation = tradingService.validateOrder(Order.fromEntity(order));
         assertTrue(validation.isSuccess());
     }
 
@@ -122,7 +123,7 @@ class TradingServiceValidationTest {
     void validate_priceZero_fails() {
         OrderEntity order = validOrder("ORD0000000000009");
         order.setPrice(0.0);
-        ValidationResult validation = tradingService.validateOrder(order);
+        ValidationResult validation = tradingService.validateOrder(Order.fromEntity(order));
         assertFalse(validation.isSuccess());
         assertTrue(validation.getMessage().contains("price"));
     }
@@ -131,21 +132,21 @@ class TradingServiceValidationTest {
     void validate_priceSmallPositive_passes() {
         OrderEntity order = validOrder("ORD0000000000010");
         order.setPrice(0.01);
-        ValidationResult validation = tradingService.validateOrder(order);
+        ValidationResult validation = tradingService.validateOrder(Order.fromEntity(order));
         assertTrue(validation.isSuccess());
     }
 
     @Test
     void validate_clOrderIdLengthBoundary_passes() {
         OrderEntity order = validOrder("ABCDEFGHIJKLMNOP");
-        ValidationResult validation = tradingService.validateOrder(order);
+        ValidationResult validation = tradingService.validateOrder(Order.fromEntity(order));
         assertTrue(validation.isSuccess());
     }
 
     @Test
     void validate_clOrderIdTooLong_fails() {
         OrderEntity order = validOrder("ABCDEFGHIJKLMNOPQ");
-        ValidationResult validation = tradingService.validateOrder(order);
+        ValidationResult validation = tradingService.validateOrder(Order.fromEntity(order));
         assertFalse(validation.isSuccess());
         assertTrue(validation.getMessage().contains("clOrderId"));
     }
@@ -154,7 +155,7 @@ class TradingServiceValidationTest {
     void validate_shareholderIdBoundary_passes() {
         OrderEntity order = validOrder("ORD0000000000011");
         order.setShareholderId("SH1234567X");
-        ValidationResult validation = tradingService.validateOrder(order);
+        ValidationResult validation = tradingService.validateOrder(Order.fromEntity(order));
         assertTrue(validation.isSuccess());
     }
 
@@ -162,7 +163,7 @@ class TradingServiceValidationTest {
     void validate_shareholderIdTooLong_fails() {
         OrderEntity order = validOrder("ORD0000000000012");
         order.setShareholderId("SH1234567XX");
-        ValidationResult validation = tradingService.validateOrder(order);
+        ValidationResult validation = tradingService.validateOrder(Order.fromEntity(order));
         assertFalse(validation.isSuccess());
         assertTrue(validation.getMessage().contains("shareholderId"));
     }

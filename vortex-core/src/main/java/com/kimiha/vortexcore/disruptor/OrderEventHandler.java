@@ -1,24 +1,31 @@
 package com.kimiha.vortexcore.disruptor;
 
+import com.kimiha.vortexcore.disruptor.CancelResultPayload;
+import com.kimiha.vortexcore.disruptor.PersistenceEventType;
+import com.kimiha.vortexcore.disruptor.TradePersistencePayload;
+import com.kimiha.vortexcore.engine.MatchResult;
 import com.kimiha.vortexcore.engine.MatchingEngine;
 import com.kimiha.vortexcore.engine.OrderBook;
 import com.kimiha.vortexcore.engine.OrderBookChangedEvent;
 import com.kimiha.vortexcore.engine.TradeResult;
-import com.kimiha.vortexcore.model.CancellationEntity;
-import com.kimiha.vortexcore.model.OrderEntity;
+import com.kimiha.vortexcore.model.entity.CancellationEntity;
+import com.kimiha.vortexcore.model.OrderStatus;
+import com.kimiha.vortexcore.model.domain.Order;
 import com.kimiha.vortexcore.model.ResultCode;
-import com.kimiha.vortexcore.model.dto.CancelConfirmDto;
-import com.kimiha.vortexcore.model.dto.CancelRejectDto;
-import com.kimiha.vortexcore.model.dto.OrderConfirmDto;
-import com.kimiha.vortexcore.model.dto.OrderExecutionDto;
-import com.kimiha.vortexcore.model.dto.OrderRejectDto;
+import com.kimiha.vortexcore.model.dto.CancelConfirm;
+import com.kimiha.vortexcore.model.dto.CancelReject;
+import com.kimiha.vortexcore.model.dto.OrderConfirm;
+import com.kimiha.vortexcore.model.dto.OrderExecution;
+import com.kimiha.vortexcore.model.dto.OrderReject;
 import com.kimiha.vortexcore.model.dto.OrderReportEnvelope;
 import com.kimiha.vortexcore.service.OrderReportStreamService;
 import com.kimiha.vortexcore.service.tools.ExecIdGenerator;
 import com.lmax.disruptor.EventHandler;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Component
@@ -31,12 +38,15 @@ public class OrderEventHandler implements EventHandler<OrderEvent> {
     private final MatchingEngine matchingEngine;
     private final ApplicationEventPublisher eventPublisher;
     private final OrderReportStreamService reportStreamService;
+    private final PersistenceEventProducer persistenceEventProducer;
 
     public OrderEventHandler(MatchingEngine matchingEngine, ApplicationEventPublisher eventPublisher,
-                             OrderReportStreamService reportStreamService) {
+                             OrderReportStreamService reportStreamService,
+                             @Autowired(required = false) PersistenceEventProducer persistenceEventProducer) {
         this.matchingEngine = matchingEngine;
-        this.eventPublisher = eventPublisher; // 可为 null，测试时不推送
+        this.eventPublisher = eventPublisher;
         this.reportStreamService = reportStreamService;
+        this.persistenceEventProducer = persistenceEventProducer;
     }
 
     @Override
@@ -45,98 +55,90 @@ public class OrderEventHandler implements EventHandler<OrderEvent> {
             handleCancel(event);
             return;
         }
-        OrderEntity order = event.getOrder();
+        Order order = event.getOrder();
         String securityId = order.getSecurityId();
         OrderBook book = matchingEngine.getOrderBook(securityId);
 
         if (book.illegalClOrderId(order)) {
+            OrderReject reject = new OrderReject(
+                    order.getClOrderId(), order.getMarket(), securityId, order.getSide(),
+                    order.getQty(), order.getPrice(), order.getShareholderId(),
+                    ResultCode.DUPLICATE_CL_ORDER_ID.getCode(), REJECT_TEXT_DUPLICATE_CL_ORDER_ID);
             if (reportStreamService != null) {
-                OrderRejectDto rejectDto = OrderRejectDto.builder()
-                        .clOrderId(order.getClOrderId())
-                        .market(order.getMarket())
-                        .securityId(securityId)
-                        .side(order.getSide())
-                        .qty(order.getQty())
-                        .price(order.getPrice())
-                        .shareholderId(order.getShareholderId())
-                        .rejectCode(ResultCode.DUPLICATE_CL_ORDER_ID.getCode())
-                        .rejectText(REJECT_TEXT_DUPLICATE_CL_ORDER_ID)
-                        .build();
                 reportStreamService.pushReport(order.getShareholderId(),
-                        new OrderReportEnvelope(OrderRejectDto.REPORT_TYPE, rejectDto));
+                        new OrderReportEnvelope(OrderReject.REPORT_TYPE, reject));
+            }
+            if (persistenceEventProducer != null) {
+                persistenceEventProducer.publish(PersistenceEventType.ORDER_REJECT, reject);
             }
             return;
         }
 
         if (book.isWashTrading(order)) {
+            OrderReject reject = new OrderReject(
+                    order.getClOrderId(), order.getMarket(), securityId, order.getSide(),
+                    order.getQty(), order.getPrice(), order.getShareholderId(),
+                    ResultCode.WASH_TRADE_REJECT.getCode(), REJECT_TEXT_WASH_TRADE);
             if (reportStreamService != null) {
-                OrderRejectDto rejectDto = OrderRejectDto.builder()
-                        .clOrderId(order.getClOrderId())
-                        .market(order.getMarket())
-                        .securityId(securityId)
-                        .side(order.getSide())
-                        .qty(order.getQty())
-                        .price(order.getPrice())
-                        .shareholderId(order.getShareholderId())
-                        .rejectCode(ResultCode.WASH_TRADE_REJECT.getCode())
-                        .rejectText(REJECT_TEXT_WASH_TRADE)
-                        .build();
                 reportStreamService.pushReport(order.getShareholderId(),
-                        new OrderReportEnvelope(OrderRejectDto.REPORT_TYPE, rejectDto));
+                        new OrderReportEnvelope(OrderReject.REPORT_TYPE, reject));
+            }
+            if (persistenceEventProducer != null) {
+                persistenceEventProducer.publish(PersistenceEventType.ORDER_REJECT, reject);
             }
             return;
         }
 
+        // 状态机：入簿前设定 orderQty、cumQty、status
+        order.setOrderQty(order.getQty());
+        order.setCumQty(0);
+        order.setStatus(OrderStatus.New);
+        order.setUpdatedTime(LocalDateTime.now());
+
         if (reportStreamService != null) {
-            OrderConfirmDto confirmDto = OrderConfirmDto.builder()
-                    .clOrderId(order.getClOrderId())
-                    .market(order.getMarket())
-                    .securityId(securityId)
-                    .side(order.getSide())
-                    .qty(order.getQty())
-                    .price(order.getPrice())
-                    .shareholderId(order.getShareholderId())
-                    .build();
+            OrderConfirm confirm = new OrderConfirm(
+                    order.getClOrderId(), order.getMarket(), securityId, order.getSide(),
+                    order.getQty(), order.getPrice(), order.getShareholderId());
             reportStreamService.pushReport(order.getShareholderId(),
-                    new OrderReportEnvelope(OrderConfirmDto.REPORT_TYPE, confirmDto));
+                    new OrderReportEnvelope(OrderConfirm.REPORT_TYPE, confirm));
+        }
+        if (persistenceEventProducer != null) {
+            persistenceEventProducer.publish(PersistenceEventType.ORDER_ACCEPTED, Order.copySnapshot(order));
         }
 
         int takerOriginalQty = order.getQty();
-        List<TradeResult> tradeResults = book.executeMatch(order);
+        MatchResult matchResult = book.executeMatch(order);
+        List<TradeResult> tradeResults = matchResult.tradeResults();
 
-        if (!tradeResults.isEmpty() && reportStreamService != null) {
+        if (!tradeResults.isEmpty()) {
             for (TradeResult tr : tradeResults) {
                 String execId = ExecIdGenerator.next();
-                // Taker 成交回报
-                OrderExecutionDto takerReport = OrderExecutionDto.builder()
-                        .clOrderId(tr.getTakerClOrderId())
-                        .market(order.getMarket())
-                        .securityId(securityId)
-                        .side(order.getSide())
-                        .qty(takerOriginalQty)
-                        .price(order.getPrice())
-                        .shareholderId(order.getShareholderId())
-                        .execId(execId)
-                        .execQty(tr.getQty())
-                        .execPrice(tr.getPrice())
-                        .build();
-                reportStreamService.pushReport(order.getShareholderId(),
-                        new OrderReportEnvelope(OrderExecutionDto.REPORT_TYPE, takerReport));
-                // Maker 成交回报
-                OrderExecutionDto makerReport = OrderExecutionDto.builder()
-                        .clOrderId(tr.getMakerClOrderId())
-                        .market(order.getMarket())
-                        .securityId(securityId)
-                        .side(tr.getMakerSide())
-                        .qty(tr.getMakerOriginalQty())
-                        .price(tr.getMakerPrice())
-                        .shareholderId(tr.getMakerShareholderId())
-                        .execId(execId)
-                        .execQty(tr.getQty())
-                        .execPrice(tr.getPrice())
-                        .build();
-                reportStreamService.pushReport(tr.getMakerShareholderId(),
-                        new OrderReportEnvelope(OrderExecutionDto.REPORT_TYPE, makerReport));
+                if (reportStreamService != null) {
+                    // Taker 成交回报
+                    OrderExecution takerReport = new OrderExecution(
+                            tr.takerClOrderId(), order.getMarket(), securityId, order.getSide(),
+                            takerOriginalQty, order.getPrice(), order.getShareholderId(),
+                            execId, tr.qty(), tr.price());
+                    reportStreamService.pushReport(order.getShareholderId(),
+                            new OrderReportEnvelope(OrderExecution.REPORT_TYPE, takerReport));
+                    // Maker 成交回报
+                    OrderExecution makerReport = new OrderExecution(
+                            tr.makerClOrderId(), order.getMarket(), securityId, tr.makerSide(),
+                            tr.makerOriginalQty(), tr.makerPrice(), tr.makerShareholderId(),
+                            execId, tr.qty(), tr.price());
+                    reportStreamService.pushReport(tr.makerShareholderId(),
+                            new OrderReportEnvelope(OrderExecution.REPORT_TYPE, makerReport));
+                }
+                if (persistenceEventProducer != null) {
+                    TradePersistencePayload payload = new TradePersistencePayload(execId, LocalDateTime.now(), order.getMarket(), tr,
+                            order.getSide(), order.getShareholderId());
+                    persistenceEventProducer.publish(PersistenceEventType.TRADE, payload);
+                }
+            }
+            if (persistenceEventProducer != null) {
+                for (Order o : matchResult.ordersUpdated()) {
+                    persistenceEventProducer.publish(PersistenceEventType.ORDER_UPDATED, o);
+                }
             }
         }
 
@@ -153,35 +155,48 @@ public class OrderEventHandler implements EventHandler<OrderEvent> {
         CancellationEntity cancellation = event.getCancellation();
         String origClOrderId = cancellation.getOrigClOrderId();
         String securityId = cancellation.getSecurityId();
+        if (persistenceEventProducer != null) {
+            persistenceEventProducer.publish(PersistenceEventType.CANCEL_REQUEST, cancellation);
+        }
         OrderBook book = matchingEngine.getOrderBook(securityId);
         // 从订单簿中移除原始订单
-        OrderEntity removed = book.cancelByClOrderId(cancellation);
+        Order removed = book.cancelByClOrderId(cancellation);
 
         if (reportStreamService != null) {
             if (removed != null) {
-                CancelConfirmDto confirmDto = CancelConfirmDto.builder()
-                        .clOrderId(origClOrderId)
-                        .origClOrderId(origClOrderId)
-                        .market(cancellation.getMarket())
-                        .securityId(securityId)
-                        .side(removed.getSide())
-                        .shareholderId(removed.getShareholderId())
-                        .qty(removed.getQty())
-                        .price(removed.getPrice())
-                        .cumQty(0)
-                        .canceledQty(removed.getQty())
-                        .build();
+                CancelConfirm confirm = new CancelConfirm(
+                        cancellation.getClOrderId(), origClOrderId, cancellation.getMarket(), securityId,
+                        removed.getSide(), removed.getShareholderId(),
+                        removed.getOrderQty() > 0 ? removed.getOrderQty() : (removed.getQty() + removed.getCumQty()),
+                        removed.getPrice(), removed.getCumQty(), removed.getQty());
                 reportStreamService.pushReport(cancellation.getShareholderId(),
-                        new OrderReportEnvelope(CancelConfirmDto.REPORT_TYPE, confirmDto));
+                        new OrderReportEnvelope(CancelConfirm.REPORT_TYPE, confirm));
+                if (persistenceEventProducer != null) {
+                    CancelResultPayload payload = CancelResultPayload.builder()
+                            .cancelRequestClOrderId(cancellation.getClOrderId())
+                            .origClOrderId(origClOrderId)
+                            .success(true)
+                            .canceledQty(removed.getQty())
+                            .cumQty(removed.getCumQty())
+                            .build();
+                    persistenceEventProducer.publish(PersistenceEventType.CANCEL_CONFIRMED, payload);
+                }
             } else {
-                CancelRejectDto rejectDto = CancelRejectDto.builder()
-                        .clOrderId(origClOrderId)
-                        .origClOrderId(origClOrderId)
-                        .rejectCode(ResultCode.NOT_FOUND.getCode())
-                        .rejectText(REJECT_TEXT_CANCEL_ORDER_NOT_FOUND)
-                        .build();
+                CancelReject reject = new CancelReject(
+                        cancellation.getClOrderId(), origClOrderId,
+                        ResultCode.NOT_FOUND.getCode(), REJECT_TEXT_CANCEL_ORDER_NOT_FOUND);
                 reportStreamService.pushReport(cancellation.getShareholderId(),
-                        new OrderReportEnvelope(CancelRejectDto.REPORT_TYPE, rejectDto));
+                        new OrderReportEnvelope(CancelReject.REPORT_TYPE, reject));
+                if (persistenceEventProducer != null) {
+                    CancelResultPayload payload = CancelResultPayload.builder()
+                            .cancelRequestClOrderId(cancellation.getClOrderId())
+                            .origClOrderId(origClOrderId)
+                            .success(false)
+                            .rejectCode(ResultCode.NOT_FOUND.getCode())
+                            .rejectText(REJECT_TEXT_CANCEL_ORDER_NOT_FOUND)
+                            .build();
+                    persistenceEventProducer.publish(PersistenceEventType.CANCEL_REJECTED, payload);
+                }
             }
         }
 
