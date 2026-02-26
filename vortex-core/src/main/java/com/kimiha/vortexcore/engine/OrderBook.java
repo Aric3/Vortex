@@ -1,5 +1,6 @@
 package com.kimiha.vortexcore.engine;
 
+import com.kimiha.vortexcore.model.CancellationEntity;
 import com.kimiha.vortexcore.model.OrderEntity;
 import java.util.*;
 
@@ -114,6 +115,7 @@ public class OrderBook {
             Iterator<OrderEntity> iterator = queue.iterator();
 
             // 吃单：新订单还有剩余量且对手盘还有剩余量
+            // TODO: 成交价最优原则，需要优化成交价生成算法
             while (iterator.hasNext() && newOrder.getQty() > 0) {
                 OrderEntity maker = iterator.next();
                 // 成交数量：新订单剩余量和对手盘剩余量中的较小值
@@ -147,6 +149,48 @@ public class OrderBook {
             updateShareholderIndex(newOrder, true); // 添加到股东价格索引
         }
         return tradeResults;
+    }
+
+    /**
+     * 按客户端订单号撤单：从订单簿中移除该挂单，并更新股东价格索引。
+     *
+     * @param cancellation 撤单请求
+     * @return 被撤掉的订单实体（含 qty/price 等用于回报）；若未找到则返回 null
+     */
+    public OrderEntity cancelByClOrderId(CancellationEntity cancellation) {
+        TreeMap<Double, LinkedList<OrderEntity>> sideMap = "B".equals(cancellation.getSide()) ? bids : asks;
+        OrderEntity removed = removeFromSide(cancellation.getOrigClOrderId(), sideMap);
+        if (removed != null) {
+            existingClOrderIds.remove(cancellation.getOrigClOrderId());
+            updateShareholderIndex(removed, false);
+        }
+        return removed;
+    }
+
+    /**
+     * 从指定方向的订单簿中移除指定客户端订单号对应的订单。
+     * @param clOrderId 待移除的客户端订单号
+     * @param side 订单簿方向（买单或卖单）
+     * @return 被移除的订单实体；若未找到则返回 null
+     */
+    private OrderEntity removeFromSide(String clOrderId, TreeMap<Double, LinkedList<OrderEntity>> side) {
+        OrderEntity removed = null;
+        Double emptyKey = null;
+        for (Map.Entry<Double, LinkedList<OrderEntity>> e : side.entrySet()) {
+            Iterator<OrderEntity> it = e.getValue().iterator();
+            while (it.hasNext()) {
+                OrderEntity o = it.next();
+                if (clOrderId.equals(o.getClOrderId())) {
+                    it.remove();
+                    removed = o;
+                    if (e.getValue().isEmpty()) emptyKey = e.getKey();
+                    break;
+                }
+            }
+            if (removed != null) break;
+        }
+        if (emptyKey != null) side.remove(emptyKey);
+        return removed;
     }
 
     /**
