@@ -1,6 +1,6 @@
 package com.kimiha.vortexcore.model;
 
-import com.kimiha.vortexcore.model.dto.OrderSubmittedDto;
+import com.kimiha.vortexcore.model.dto.OrderSubmitResponse;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
@@ -11,7 +11,7 @@ import lombok.Getter;
 @AllArgsConstructor
 public class ProcessOrderResult {
     private final ValidationResult validation;
-    private final OrderSubmittedDto submitResult; // 已提交信息，仅含 clOrderId
+    private final OrderSubmitResponse submitResult; // 已提交信息，仅含 clOrderId
 
     public boolean isSuccess() {
         return validation.isSuccess();

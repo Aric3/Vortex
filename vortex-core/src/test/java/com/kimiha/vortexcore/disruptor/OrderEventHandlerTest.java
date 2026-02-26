@@ -1,9 +1,11 @@
 package com.kimiha.vortexcore.disruptor;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+
+import com.kimiha.vortexcore.Utils;
 import com.kimiha.vortexcore.engine.MatchingEngine;
 import com.kimiha.vortexcore.engine.OrderBook;
-import com.kimiha.vortexcore.model.OrderEntity;
+import com.kimiha.vortexcore.model.domain.Order;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -15,8 +17,8 @@ class OrderEventHandlerTest {
     private MatchingEngine matchingEngine;
     private OrderEventHandler handler;
 
-    private OrderEntity order(String clOrderId, String side, String securityId, String shareholderId, double price, int qty) {
-        OrderEntity o = new OrderEntity();
+    private Order order(String clOrderId, String side, String securityId, String shareholderId, double price, int qty) {
+        Order o = new Order();
         o.setClOrderId(clOrderId);
         o.setMarket("XSHG");
         o.setSecurityId(securityId);
@@ -27,7 +29,7 @@ class OrderEventHandlerTest {
         return o;
     }
 
-    private void publishToHandler(OrderEntity order) {
+    private void publishToHandler(Order order) {
         OrderEvent event = new OrderEvent();
         event.setOrder(order);
         handler.onEvent(event, 0, true);
@@ -36,13 +38,13 @@ class OrderEventHandlerTest {
     @BeforeEach
     void setUp() {
         matchingEngine = new MatchingEngine();
-        handler = new OrderEventHandler(matchingEngine, null, null);
+        handler = new OrderEventHandler(matchingEngine, null, null, null);
     }
 
     @Test
     void validBuyOrder_restsOnBook() {
         String sec = "600000";
-        OrderEntity buy = order("B001", "B", sec, "SH_A", 10.0, 100);
+        Order buy = order(Utils.randomClOrderId(), "B", sec, "SH_A", 10.0, 100);
         publishToHandler(buy);
 
         OrderBook book = matchingEngine.getOrderBook(sec);
@@ -52,8 +54,8 @@ class OrderEventHandlerTest {
     @Test
     void oppositeOrders_samePrice_matchAndReduceRestingCount() {
         String sec = "600001";
-        OrderEntity buy = order("B002", "B", sec, "SH_A", 10.0, 100);
-        OrderEntity sell = order("S002", "S", sec, "SH_B", 10.0, 100);
+        Order buy = order(Utils.randomClOrderId(), "B", sec, "SH_A", 10.0, 100);
+        Order sell = order(Utils.randomClOrderId(), "S", sec, "SH_B", 10.0, 100);
 
         publishToHandler(buy);
         OrderBook book = matchingEngine.getOrderBook(sec);
@@ -66,13 +68,13 @@ class OrderEventHandlerTest {
     @Test
     void washTrade_buyWhenSameShareholderHasAsk_blocked() {
         String sec = "600002";
-        OrderEntity sell = order("S003", "S", sec, "SH_X", 10.0, 100);
+        Order sell = order(Utils.randomClOrderId(), "S", sec, "SH_X", 10.0, 100);
         publishToHandler(sell);
         OrderBook book = matchingEngine.getOrderBook(sec);
         assertEquals(1, book.getRestingOrderCount());
 
         // 同一股东再下买单，且买价 >= 自己的卖挂单价 → 对敲，应被拦截
-        OrderEntity buy = order("B003", "B", sec, "SH_X", 10.0, 50);
+        Order buy = order(Utils.randomClOrderId(), "B", sec, "SH_X", 10.0, 50);
         publishToHandler(buy);
         // 订单不应进入订单簿，挂单数仍为 1（只有之前的卖单）
         assertEquals(1, book.getRestingOrderCount());
@@ -81,10 +83,10 @@ class OrderEventHandlerTest {
     @Test
     void washTrade_sellWhenSameShareholderHasBid_blocked() {
         String sec = "600003";
-        OrderEntity buy = order("B004", "B", sec, "SH_Y", 10.0, 100);
+        Order buy = order(Utils.randomClOrderId(), "B", sec, "SH_Y", 10.0, 100);
         publishToHandler(buy);
 
-        OrderEntity sell = order("S004", "S", sec, "SH_Y", 10.0, 50);
+        Order sell = order(Utils.randomClOrderId(), "S", sec, "SH_Y", 10.0, 50);
         publishToHandler(sell);
 
         OrderBook book = matchingEngine.getOrderBook(sec);
@@ -95,10 +97,10 @@ class OrderEventHandlerTest {
     @Test
     void differentShareholders_samePrice_notWashTrade() {
         String sec = "600004";
-        OrderEntity sell = order("S005", "S", sec, "SH_A", 10.0, 100);
+        Order sell = order(Utils.randomClOrderId(), "S", sec, "SH_A", 10.0, 100);
         publishToHandler(sell);
 
-        OrderEntity buy = order("B005", "B", sec, "SH_B", 10.0, 100);
+        Order buy = order(Utils.randomClOrderId(), "B", sec, "SH_B", 10.0, 100);
         publishToHandler(buy);
 
         OrderBook book = matchingEngine.getOrderBook(sec);

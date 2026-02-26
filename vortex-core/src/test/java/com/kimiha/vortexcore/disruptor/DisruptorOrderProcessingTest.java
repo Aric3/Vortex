@@ -3,9 +3,10 @@ package com.kimiha.vortexcore.disruptor;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.kimiha.vortexcore.Utils;
 import com.kimiha.vortexcore.engine.MatchingEngine;
 import com.kimiha.vortexcore.engine.OrderBook;
-import com.kimiha.vortexcore.model.OrderEntity;
+import com.kimiha.vortexcore.model.domain.Order;
 import com.lmax.disruptor.RingBuffer;
 import com.lmax.disruptor.YieldingWaitStrategy;
 import com.lmax.disruptor.dsl.Disruptor;
@@ -21,8 +22,8 @@ import org.junit.jupiter.api.Test;
  */
 class DisruptorOrderProcessingTest {
 
-    private OrderEntity order(String clOrderId, String side, String securityId, String shareholderId, double price, int qty) {
-        OrderEntity o = new OrderEntity();
+    private Order order(String clOrderId, String side, String securityId, String shareholderId, double price, int qty) {
+        Order o = new Order();
         o.setClOrderId(clOrderId);
         o.setMarket("XSHG");
         o.setSecurityId(securityId);
@@ -36,7 +37,7 @@ class DisruptorOrderProcessingTest {
     @Test
     void publishEvent_asyncHandlerProcesses_orderRestsOnBook() throws InterruptedException {
         MatchingEngine matchingEngine = new MatchingEngine();
-        OrderEventHandler handler = new OrderEventHandler(matchingEngine, null, null);
+        OrderEventHandler handler = new OrderEventHandler(matchingEngine, null, null, null);
         CountDownLatch latch = new CountDownLatch(1);
 
         int bufferSize = 16;
@@ -54,13 +55,14 @@ class DisruptorOrderProcessingTest {
         disruptor.start();
 
         try {
-            OrderEntity buy = order("ASYNC_B1", "B", "600010", "SH_A", 10.0, 100);
+            String sec = "600010";
+            Order buy = order(Utils.randomClOrderId(), "B", sec, Utils.randomShareholderId(), 10.0, 100);
             RingBuffer<OrderEvent> ringBuffer = disruptor.getRingBuffer();
             ringBuffer.publishEvent((event, sequence) -> event.setOrder(buy));
 
             assertTrue(latch.await(2, TimeUnit.SECONDS), "Handler should process event within 2s");
 
-            OrderBook book = matchingEngine.getOrderBook("600010");
+            OrderBook book = matchingEngine.getOrderBook(sec);
             assertEquals(1, book.getRestingOrderCount());
         } finally {
             disruptor.shutdown();
@@ -70,7 +72,7 @@ class DisruptorOrderProcessingTest {
     @Test
     void publishTwoOppositeOrders_bothProcessed_matchResult() throws InterruptedException {
         MatchingEngine matchingEngine = new MatchingEngine();
-        OrderEventHandler handler = new OrderEventHandler(matchingEngine, null, null);
+        OrderEventHandler handler = new OrderEventHandler(matchingEngine, null, null, null);
         CountDownLatch latch = new CountDownLatch(2);
 
         int bufferSize = 16;
@@ -88,13 +90,18 @@ class DisruptorOrderProcessingTest {
         disruptor.start();
 
         try {
-            RingBuffer<OrderEvent> ringBuffer = disruptor.getRingBuffer();
             String sec = "600011";
-
-            ringBuffer.publishEvent((event, sequence) -> event.setOrder(
-                    order("ASYNC_B2", "B", sec, "SH_A", 10.0, 100)));
-            ringBuffer.publishEvent((event, sequence) -> event.setOrder(
-                    order("ASYNC_S2", "S", sec, "SH_B", 10.0, 100)));
+            Order buy = order(Utils.randomClOrderId(), "B", sec, Utils.randomShareholderId(), 10.0, 100);
+            Order sell = order(Utils.randomClOrderId(), "S", sec, Utils.randomShareholderId(), 10.0, 100);
+            RingBuffer<OrderEvent> ringBuffer = disruptor.getRingBuffer();
+            ringBuffer.publishEvent((event, sequence) -> {
+                event.setOrder(buy);
+                latch.countDown();
+            });
+            ringBuffer.publishEvent((event, sequence) -> {
+                event.setOrder(sell);
+                latch.countDown();    
+            });
 
             assertTrue(latch.await(2, TimeUnit.SECONDS), "Both events should be processed");
 
@@ -104,4 +111,5 @@ class DisruptorOrderProcessingTest {
             disruptor.shutdown();
         }
     }
+    
 }
