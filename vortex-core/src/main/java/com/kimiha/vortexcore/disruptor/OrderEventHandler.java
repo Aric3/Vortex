@@ -4,8 +4,11 @@ import com.kimiha.vortexcore.engine.MatchingEngine;
 import com.kimiha.vortexcore.engine.OrderBook;
 import com.kimiha.vortexcore.engine.OrderBookChangedEvent;
 import com.kimiha.vortexcore.engine.TradeResult;
+import com.kimiha.vortexcore.model.CancellationEntity;
 import com.kimiha.vortexcore.model.OrderEntity;
 import com.kimiha.vortexcore.model.ResultCode;
+import com.kimiha.vortexcore.model.dto.CancelConfirmDto;
+import com.kimiha.vortexcore.model.dto.CancelRejectDto;
 import com.kimiha.vortexcore.model.dto.OrderConfirmDto;
 import com.kimiha.vortexcore.model.dto.OrderExecutionDto;
 import com.kimiha.vortexcore.model.dto.OrderRejectDto;
@@ -23,6 +26,7 @@ public class OrderEventHandler implements EventHandler<OrderEvent> {
 
     private static final String REJECT_TEXT_WASH_TRADE = "Wash trade rejected";
     private static final String REJECT_TEXT_DUPLICATE_CL_ORDER_ID = "Duplicate clOrderId";
+    private static final String REJECT_TEXT_CANCEL_ORDER_NOT_FOUND = "Order not found or already filled/canceled";
 
     private final MatchingEngine matchingEngine;
     private final ApplicationEventPublisher eventPublisher;
@@ -37,6 +41,10 @@ public class OrderEventHandler implements EventHandler<OrderEvent> {
 
     @Override
     public void onEvent(OrderEvent event, long sequence, boolean endOfBatch) {
+        if (event.isCancel()) {
+            handleCancel(event);
+            return;
+        }
         OrderEntity order = event.getOrder();
         String securityId = order.getSecurityId();
         OrderBook book = matchingEngine.getOrderBook(securityId);
@@ -133,6 +141,51 @@ public class OrderEventHandler implements EventHandler<OrderEvent> {
         }
 
         if (eventPublisher != null) {
+            eventPublisher.publishEvent(new OrderBookChangedEvent(this, securityId));
+        }
+    }
+
+    /**
+     * 处理撤单请求
+     * @param event 撤单请求事件
+     */
+    private void handleCancel(OrderEvent event) {
+        CancellationEntity cancellation = event.getCancellation();
+        String origClOrderId = cancellation.getOrigClOrderId();
+        String securityId = cancellation.getSecurityId();
+        OrderBook book = matchingEngine.getOrderBook(securityId);
+        // 从订单簿中移除原始订单
+        OrderEntity removed = book.cancelByClOrderId(cancellation);
+
+        if (reportStreamService != null) {
+            if (removed != null) {
+                CancelConfirmDto confirmDto = CancelConfirmDto.builder()
+                        .clOrderId(origClOrderId)
+                        .origClOrderId(origClOrderId)
+                        .market(cancellation.getMarket())
+                        .securityId(securityId)
+                        .side(removed.getSide())
+                        .shareholderId(removed.getShareholderId())
+                        .qty(removed.getQty())
+                        .price(removed.getPrice())
+                        .cumQty(0)
+                        .canceledQty(removed.getQty())
+                        .build();
+                reportStreamService.pushReport(cancellation.getShareholderId(),
+                        new OrderReportEnvelope(CancelConfirmDto.REPORT_TYPE, confirmDto));
+            } else {
+                CancelRejectDto rejectDto = CancelRejectDto.builder()
+                        .clOrderId(origClOrderId)
+                        .origClOrderId(origClOrderId)
+                        .rejectCode(ResultCode.NOT_FOUND.getCode())
+                        .rejectText(REJECT_TEXT_CANCEL_ORDER_NOT_FOUND)
+                        .build();
+                reportStreamService.pushReport(cancellation.getShareholderId(),
+                        new OrderReportEnvelope(CancelRejectDto.REPORT_TYPE, rejectDto));
+            }
+        }
+
+        if (removed != null && eventPublisher != null) {
             eventPublisher.publishEvent(new OrderBookChangedEvent(this, securityId));
         }
     }

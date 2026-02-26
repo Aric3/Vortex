@@ -25,6 +25,7 @@ public class OrderEntity {
     private int qty;// 订单数量 (4字节无符号整数)
     private Double price;// 订单价格 (8字节浮点数)
     private String shareholderId;// 股东号 (10字节字符串)
+    
     private LocalDateTime createTime;
 
     @PrePersist
