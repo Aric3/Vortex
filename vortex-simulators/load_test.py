@@ -12,6 +12,7 @@ import json
 import random
 import string
 import time
+import uuid
 from locust import HttpUser, task, between, events
 
 
@@ -45,10 +46,8 @@ class TradingUser(HttpUser):
         print(f"用户启动，股东号: {self.shareholder_id}")
 
     def generate_order_id(self):
-        """生成16位订单编号"""
-        timestamp = str(int(time.time() * 1000))[-10:]  # 取时间戳后10位
-        random_part = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
-        return timestamp + random_part
+        """生成全局唯一的 16 位订单编号（满足服务端 clOrderId 长度约束，高并发下不碰撞）"""
+        return uuid.uuid4().hex[:16]
 
     def generate_shareholder_id(self):
         """生成10位股东号"""
