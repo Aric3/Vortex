@@ -15,12 +15,12 @@ public class OrderBook {
     private final TreeMap<Double, LinkedList<Order>> bids = new TreeMap<>(Collections.reverseOrder());
     private final TreeMap<Double, LinkedList<Order>> asks = new TreeMap<>();
 
-    // 股东价格索引 shareholderId -> {price -> order count}
+    // 股东价格索引 shareholderId -> {price -> order count} 用于检测对敲风险
     private final Map<String, TreeMap<Double, Integer>> shareholderBids = new HashMap<>();
     private final Map<String, TreeMap<Double, Integer>> shareholderAsks = new HashMap<>();
 
-    // 当前在簿挂单的 clOrderId 集合，用于 O(1) 唯一性检测
-    private final Set<String> existingClOrderIds = new HashSet<>();
+    // clOrderId -> price 索引：用于 O(1) 唯一性检测，以及撤单时 O(k) 定位（k 为同价档订单数）
+    private final Map<String, Double> clOrderIdToPrice = new HashMap<>();
 
     public OrderBook(String securityId) {
         this.securityId = securityId;
@@ -69,7 +69,7 @@ public class OrderBook {
         if (order == null || order.getClOrderId() == null) {
             return false;
         }
-        return existingClOrderIds.contains(order.getClOrderId());
+        return clOrderIdToPrice.containsKey(order.getClOrderId());
     }
 
     /**
@@ -142,7 +142,7 @@ public class OrderBook {
                 if (maker.getQty() == 0) {
                     OrderStateMachine.transition(maker, OrderStatus.Filled);
                     iterator.remove();
-                    existingClOrderIds.remove(maker.getClOrderId());
+                    clOrderIdToPrice.remove(maker.getClOrderId());
                     updateShareholderIndex(maker, false); // 从索引中移除已成交完的maker订单
                 }
             }
@@ -156,7 +156,7 @@ public class OrderBook {
             TreeMap<Double, LinkedList<Order>> mySide = "B".equals(newOrder.getSide()) ? bids : asks;
             mySide.computeIfAbsent(newOrder.getPrice(), k -> new LinkedList<>()).add(newOrder);
             if (newOrder.getClOrderId() != null) {
-                existingClOrderIds.add(newOrder.getClOrderId());
+                clOrderIdToPrice.put(newOrder.getClOrderId(), newOrder.getPrice());
             }
             updateShareholderIndex(newOrder, true); // 添加到股东价格索引
         } else {
@@ -177,7 +177,7 @@ public class OrderBook {
         Order removed = removeFromSide(cancellation.getOrigClOrderId(), sideMap);
         if (removed != null) {
             OrderStateMachine.transition(removed, OrderStatus.Canceled);
-            existingClOrderIds.remove(cancellation.getOrigClOrderId());
+            clOrderIdToPrice.remove(cancellation.getOrigClOrderId());
             updateShareholderIndex(removed, false);
         }
         return removed;
@@ -185,27 +185,30 @@ public class OrderBook {
 
     /**
      * 从指定方向的订单簿中移除指定客户端订单号对应的订单。
+     * 通过 clOrderIdToPrice 索引直接定位价格档位，复杂度 O(k)，k 为同价档订单数。
+     *
      * @param clOrderId 待移除的客户端订单号
      * @param side 订单簿方向（买单或卖单）
      * @return 被移除的订单实体；若未找到则返回 null
      */
     private Order removeFromSide(String clOrderId, TreeMap<Double, LinkedList<Order>> side) {
+        Double price = clOrderIdToPrice.get(clOrderId);
+        if (price == null) return null;
+
+        LinkedList<Order> queue = side.get(price);
+        if (queue == null) return null;
+
         Order removed = null;
-        Double emptyKey = null;
-        for (Map.Entry<Double, LinkedList<Order>> e : side.entrySet()) {
-            Iterator<Order> it = e.getValue().iterator();
-            while (it.hasNext()) {
-                Order o = it.next();
-                if (clOrderId.equals(o.getClOrderId())) {
-                    it.remove();
-                    removed = o;
-                    if (e.getValue().isEmpty()) emptyKey = e.getKey();
-                    break;
-                }
+        Iterator<Order> it = queue.iterator();
+        while (it.hasNext()) {
+            Order o = it.next();
+            if (clOrderId.equals(o.getClOrderId())) {
+                it.remove();
+                removed = o;
+                break;
             }
-            if (removed != null) break;
         }
-        if (emptyKey != null) side.remove(emptyKey);
+        if (queue.isEmpty()) side.remove(price);
         return removed;
     }
 
