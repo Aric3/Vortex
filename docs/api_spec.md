@@ -16,7 +16,7 @@
 }
 ```
 - 响应体（response body）：
-未通过基础合法校验时，返回标准错误 Result（success=false, code=VALIDATION_ERROR），不返回订单确认或拒绝DTO。
+未通过基础合法校验时，返回标准错误 Result（success=false, code=VALIDATION_ERROR。
 ``` json
 {
     "success":false,
@@ -94,7 +94,7 @@
     ],
     "asks": [],
     "timestamp": 1772023126873
-}
+    }
    ```
 
 - 请求方式：GET（SSE推送）
@@ -118,7 +118,7 @@
     ],
     "asks": [],
     "timestamp": 1772023126873
-}
+    }
    ```
 ---
 
