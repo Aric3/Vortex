@@ -18,4 +18,8 @@ spring:
         hibernate:
             ddl-auto: update
         show-sql: true
+
+analytics:
+    enabled: true
+    refresh-interval-ms: 1000
         
