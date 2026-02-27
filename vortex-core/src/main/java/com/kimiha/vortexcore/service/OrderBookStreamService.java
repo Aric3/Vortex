@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
 
+import java.time.Duration;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -20,20 +21,23 @@ public class OrderBookStreamService {
     private final ConcurrentHashMap<String, Sinks.Many<Object>> sinksBySecurity = new ConcurrentHashMap<>();
 
     private static final Object CHANGE_SIGNAL = new Object();
+    private static final Duration HEARTBEAT_INTERVAL = Duration.ofSeconds(30);
 
     public OrderBookStreamService(MatchingEngine matchingEngine) {
         this.matchingEngine = matchingEngine;
     }
 
     /**
-     * 订阅该标的订单簿流：订阅时传入 depth，立即收到当前快照（前 depth 档），之后每次订单簿变动都推送一次前 depth 档快照。
+     * 订阅该标的订单簿流：订阅时传入 depth，立即收到当前快照（前 depth 档），之后每次订单簿变动或每 30 秒推送一次快照（保活）
      */
     public Flux<OrderBookSnapshot> stream(String securityId, int depth) {
         Sinks.Many<Object> sink = sinksBySecurity.computeIfAbsent(securityId,
                 k -> Sinks.many().multicast().onBackpressureBuffer());
+        Flux<OrderBookSnapshot> onChange = sink.asFlux().map(ignore -> currentSnapshot(securityId, depth));
+        Flux<OrderBookSnapshot> heartbeat = Flux.interval(HEARTBEAT_INTERVAL).map(tick -> currentSnapshot(securityId, depth));
         return Flux.concat(
                 Flux.defer(() -> Flux.just(currentSnapshot(securityId, depth))),
-                sink.asFlux().map(ignore -> currentSnapshot(securityId, depth))
+                Flux.merge(onChange, heartbeat)
         );
     }
 
