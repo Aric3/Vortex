@@ -66,7 +66,7 @@ public class OrderController {
 
     /**
      * 订单回报 SSE 流：客户端按股东号订阅，接收该股东下的订单成交回报、撤单确认回报等。
-     * 连接后保持长连接，有回报时服务端推送。
+     * 连接后保持长连接，有回报时服务端推送
      * GET /api/v1/vclient/stream/reports?shareholderId=xxx
      */
     @GetMapping(value = "/stream/reports", produces = MediaType.TEXT_EVENT_STREAM_VALUE)

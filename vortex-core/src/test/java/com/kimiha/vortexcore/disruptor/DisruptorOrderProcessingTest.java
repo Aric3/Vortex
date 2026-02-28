@@ -94,14 +94,8 @@ class DisruptorOrderProcessingTest {
             Order buy = order(Utils.randomClOrderId(), "B", sec, Utils.randomShareholderId(), 10.0, 100);
             Order sell = order(Utils.randomClOrderId(), "S", sec, Utils.randomShareholderId(), 10.0, 100);
             RingBuffer<OrderEvent> ringBuffer = disruptor.getRingBuffer();
-            ringBuffer.publishEvent((event, sequence) -> {
-                event.setOrder(buy);
-                latch.countDown();
-            });
-            ringBuffer.publishEvent((event, sequence) -> {
-                event.setOrder(sell);
-                latch.countDown();    
-            });
+            ringBuffer.publishEvent((event, sequence) -> event.setOrder(buy));
+            ringBuffer.publishEvent((event, sequence) -> event.setOrder(sell));
 
             assertTrue(latch.await(2, TimeUnit.SECONDS), "Both events should be processed");
 
@@ -111,5 +105,81 @@ class DisruptorOrderProcessingTest {
             disruptor.shutdown();
         }
     }
-    
+
+    /** N=1 管道：主 Disruptor -> Router -> 单分片 -> OrderEventHandler，行为与单消费者一致。 */
+    @Test
+    void routerWithOneShard_orderProcessed_orderRestsOnBook() throws InterruptedException {
+        MatchingEngine matchingEngine = new MatchingEngine();
+        OrderEventHandler handler = new OrderEventHandler(matchingEngine, null, null, null);
+        ShardDisruptorHolder holder = new ShardDisruptorHolder(1, handler);
+        OrderEventRouter router = new OrderEventRouter(holder.getShardRingBuffers());
+
+        int bufferSize = 16;
+        Disruptor<OrderEvent> mainDisruptor = new Disruptor<>(
+                OrderEvent::new,
+                bufferSize,
+                DaemonThreadFactory.INSTANCE,
+                ProducerType.SINGLE,
+                new YieldingWaitStrategy()
+        );
+        mainDisruptor.handleEventsWith(router);
+        mainDisruptor.start();
+
+        try {
+            String sec = "600020";
+            Order buy = order(Utils.randomClOrderId(), "B", sec, Utils.randomShareholderId(), 10.0, 100);
+            RingBuffer<OrderEvent> mainBuffer = mainDisruptor.getRingBuffer();
+            mainBuffer.publishEvent((event, sequence) -> event.setOrder(buy));
+
+            Thread.sleep(300);
+
+            OrderBook book = matchingEngine.getOrderBook(sec);
+            assertEquals(1, book.getRestingOrderCount(), "N=1 pipeline: order should rest on book");
+        } finally {
+            mainDisruptor.shutdown();
+            for (var d : holder.getShardDisruptors()) {
+                d.shutdown();
+            }
+        }
+    }
+
+    /** 多分片：不同 securityId 的订单进入不同分片，各自订单簿正确。 */
+    @Test
+    void routerWithMultipleShards_differentSymbols_bothOrdersOnBooks() throws InterruptedException {
+        MatchingEngine matchingEngine = new MatchingEngine();
+        OrderEventHandler handler = new OrderEventHandler(matchingEngine, null, null, null);
+        ShardDisruptorHolder holder = new ShardDisruptorHolder(4, handler);
+        OrderEventRouter router = new OrderEventRouter(holder.getShardRingBuffers());
+
+        int bufferSize = 16;
+        Disruptor<OrderEvent> mainDisruptor = new Disruptor<>(
+                OrderEvent::new,
+                bufferSize,
+                DaemonThreadFactory.INSTANCE,
+                ProducerType.SINGLE,
+                new YieldingWaitStrategy()
+        );
+        mainDisruptor.handleEventsWith(router);
+        mainDisruptor.start();
+
+        try {
+            String sec1 = "600001";
+            String sec2 = "600002";
+            Order buy1 = order(Utils.randomClOrderId(), "B", sec1, Utils.randomShareholderId(), 10.0, 100);
+            Order buy2 = order(Utils.randomClOrderId(), "B", sec2, Utils.randomShareholderId(), 11.0, 200);
+            RingBuffer<OrderEvent> mainBuffer = mainDisruptor.getRingBuffer();
+            mainBuffer.publishEvent((event, sequence) -> event.setOrder(buy1));
+            mainBuffer.publishEvent((event, sequence) -> event.setOrder(buy2));
+
+            Thread.sleep(400);
+
+            assertEquals(1, matchingEngine.getOrderBook(sec1).getRestingOrderCount());
+            assertEquals(1, matchingEngine.getOrderBook(sec2).getRestingOrderCount());
+        } finally {
+            mainDisruptor.shutdown();
+            for (var d : holder.getShardDisruptors()) {
+                d.shutdown();
+            }
+        }
+    }
 }
