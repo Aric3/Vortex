@@ -108,6 +108,7 @@ public class OrderEventHandler implements EventHandler<OrderEvent> {
         List<TradeResult> tradeResults = matchResult.tradeResults();
 
         if (!tradeResults.isEmpty()) {
+            LocalDateTime tradeTime = LocalDateTime.now();
             for (TradeResult tr : tradeResults) {
                 String execId = ExecIdGenerator.next();
                 if (reportStreamService != null) {
@@ -127,7 +128,7 @@ public class OrderEventHandler implements EventHandler<OrderEvent> {
                             new OrderReportEnvelope(OrderExecution.REPORT_TYPE, makerReport));
                 }
                 if (persistenceEventProducer != null) {
-                    TradePersistencePayload payload = new TradePersistencePayload(execId, LocalDateTime.now(), order.getMarket(), tr,
+                    TradePersistencePayload payload = new TradePersistencePayload(execId, tradeTime, order.getMarket(), tr,
                             order.getSide(), order.getShareholderId());
                     persistenceEventProducer.publish(PersistenceEventType.TRADE, payload);
                 }

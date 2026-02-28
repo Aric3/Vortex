@@ -103,6 +103,7 @@ public class OrderBook {
     public MatchResult executeMatch(Order newOrder) {
         List<TradeResult> tradeResults = new ArrayList<>();
         List<Order> ordersUpdated = new ArrayList<>();
+        LocalDateTime now = LocalDateTime.now();
         // 对手盘
         TreeMap<Double, LinkedHashMap<String, Order>> counterParties = "B".equals(newOrder.getSide()) ? asks : bids;
 
@@ -129,7 +130,7 @@ public class OrderBook {
                 newOrder.setCumQty(newOrder.getCumQty() + tradeQty);
                 maker.setQty(maker.getQty() - tradeQty);
                 maker.setCumQty(maker.getCumQty() + tradeQty);
-                maker.setUpdatedTime(LocalDateTime.now());
+                maker.setUpdatedTime(now);
                 ordersUpdated.add(maker);
                 if (maker.getQty() == 0) {
                     OrderStateMachine.transition(maker, OrderStatus.Filled);
