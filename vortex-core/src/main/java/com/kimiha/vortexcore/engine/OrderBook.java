@@ -12,14 +12,14 @@ public class OrderBook {
     private final String securityId;
 
     // 交易所标准盘口 买单：价格从高到低排序 卖单：价格从低到高排序
-    private final TreeMap<Double, LinkedList<Order>> bids = new TreeMap<>(Collections.reverseOrder());
-    private final TreeMap<Double, LinkedList<Order>> asks = new TreeMap<>();
+    private final TreeMap<Double, LinkedHashMap<String, Order>> bids = new TreeMap<>(Collections.reverseOrder());
+    private final TreeMap<Double, LinkedHashMap<String, Order>> asks = new TreeMap<>();
 
     // 股东价格索引 shareholderId -> {price -> order count} 用于检测对敲风险
     private final Map<String, TreeMap<Double, Integer>> shareholderBids = new HashMap<>();
     private final Map<String, TreeMap<Double, Integer>> shareholderAsks = new HashMap<>();
 
-    // clOrderId -> price 索引：用于 O(1) 唯一性检测，以及撤单时 O(k) 定位（k 为同价档订单数）
+    // clOrderId -> price 索引：用于 O(1) 唯一性检测，以及撤单时 O(1) 定位价格档（同档用 LinkedHashMap 按 id 删除）
     private final Map<String, Double> clOrderIdToPrice = new HashMap<>();
 
     public OrderBook(String securityId) {
@@ -31,8 +31,8 @@ public class OrderBook {
      */
     public int getRestingOrderCount() {
         int count = 0;
-        for (LinkedList<Order> queue : bids.values()) count += queue.size();
-        for (LinkedList<Order> queue : asks.values()) count += queue.size();
+        for (LinkedHashMap<String, Order> queue : bids.values()) count += queue.size();
+        for (LinkedHashMap<String, Order> queue : asks.values()) count += queue.size();
         return count;
     }
 
@@ -42,19 +42,19 @@ public class OrderBook {
     public OrderBookSnapshot getSnapshot(int depth) {
         List<OrderBookLevel> bidLevels = new ArrayList<>();
         int b = 0;
-        for (Map.Entry<Double, LinkedList<Order>> e : bids.entrySet()) {
+        for (Map.Entry<Double, LinkedHashMap<String, Order>> e : bids.entrySet()) {
             if (b >= depth) break;
             long qty = 0;
-            for (Order o : e.getValue()) qty += o.getQty();
+            for (Order o : e.getValue().values()) qty += o.getQty();
             bidLevels.add(new OrderBookLevel(e.getKey(), qty, e.getValue().size()));
             b++;
         }
         List<OrderBookLevel> askLevels = new ArrayList<>();
         int a = 0;
-        for (Map.Entry<Double, LinkedList<Order>> e : asks.entrySet()) {
+        for (Map.Entry<Double, LinkedHashMap<String, Order>> e : asks.entrySet()) {
             if (a >= depth) break;
             long qty = 0;
-            for (Order o : e.getValue()) qty += o.getQty();
+            for (Order o : e.getValue().values()) qty += o.getQty();
             askLevels.add(new OrderBookLevel(e.getKey(), qty, e.getValue().size()));
             a++;
         }
@@ -104,7 +104,7 @@ public class OrderBook {
         List<TradeResult> tradeResults = new ArrayList<>();
         List<Order> ordersUpdated = new ArrayList<>();
         // 对手盘
-        TreeMap<Double, LinkedList<Order>> counterParties = "B".equals(newOrder.getSide()) ? asks : bids;
+        TreeMap<Double, LinkedHashMap<String, Order>> counterParties = "B".equals(newOrder.getSide()) ? asks : bids;
 
         // 尝试撮合：对手盘不为空且新订单还有剩余量
         while (!counterParties.isEmpty() && newOrder.getQty() > 0) {
@@ -116,34 +116,26 @@ public class OrderBook {
             if ("S".equals(newOrder.getSide()) && newOrder.getPrice() > bestPrice)
                 break;
 
-            LinkedList<Order> queue = counterParties.get(bestPrice);
-            Iterator<Order> iterator = queue.iterator();
-
-            // 吃单：新订单还有剩余量且对手盘还有剩余量
-            // TODO: 成交价最优原则，需要优化成交价生成算法
-            while (iterator.hasNext() && newOrder.getQty() > 0) {
-                Order maker = iterator.next();
-                // 成交数量：新订单剩余量和对手盘剩余量中的较小值
+            LinkedHashMap<String, Order> queue = counterParties.get(bestPrice);
+            Iterator<Order> it = queue.values().iterator();
+            while (it.hasNext() && newOrder.getQty() > 0) {
+                Order maker = it.next();
                 int tradeQty = Math.min(newOrder.getQty(), maker.getQty());
                 int makerOriginalQty = maker.getQty();
-
                 tradeResults.add(new TradeResult(
                         newOrder.getClOrderId(), maker.getClOrderId(), bestPrice, tradeQty, securityId,
                         maker.getSide(), maker.getShareholderId(), makerOriginalQty, maker.getPrice()));
-
                 newOrder.setQty(newOrder.getQty() - tradeQty);
                 newOrder.setCumQty(newOrder.getCumQty() + tradeQty);
-
                 maker.setQty(maker.getQty() - tradeQty);
                 maker.setCumQty(maker.getCumQty() + tradeQty);
                 maker.setUpdatedTime(LocalDateTime.now());
                 ordersUpdated.add(maker);
-
                 if (maker.getQty() == 0) {
                     OrderStateMachine.transition(maker, OrderStatus.Filled);
-                    iterator.remove();
+                    it.remove();
                     clOrderIdToPrice.remove(maker.getClOrderId());
-                    updateShareholderIndex(maker, false); // 从索引中移除已成交完的maker订单
+                    updateShareholderIndex(maker, false);
                 }
             }
             if (queue.isEmpty())
@@ -153,8 +145,8 @@ public class OrderBook {
         // 2. 剩余部分进入挂单；设置 taker 终态
         if (newOrder.getQty() > 0) {
             OrderStateMachine.transition(newOrder, OrderStatus.PartiallyFilled);
-            TreeMap<Double, LinkedList<Order>> mySide = "B".equals(newOrder.getSide()) ? bids : asks;
-            mySide.computeIfAbsent(newOrder.getPrice(), k -> new LinkedList<>()).add(newOrder);
+            TreeMap<Double, LinkedHashMap<String, Order>> mySide = "B".equals(newOrder.getSide()) ? bids : asks;
+            mySide.computeIfAbsent(newOrder.getPrice(), k -> new LinkedHashMap<>()).put(newOrder.getClOrderId(), newOrder);
             if (newOrder.getClOrderId() != null) {
                 clOrderIdToPrice.put(newOrder.getClOrderId(), newOrder.getPrice());
             }
@@ -173,7 +165,7 @@ public class OrderBook {
      * @return 被撤掉的订单（含 qty/price 等用于回报）；若未找到则返回 null
      */
     public Order cancelByClOrderId(CancellationEntity cancellation) {
-        TreeMap<Double, LinkedList<Order>> sideMap = "B".equals(cancellation.getSide()) ? bids : asks;
+        TreeMap<Double, LinkedHashMap<String, Order>> sideMap = "B".equals(cancellation.getSide()) ? bids : asks;
         Order removed = removeFromSide(cancellation.getOrigClOrderId(), sideMap);
         if (removed != null) {
             OrderStateMachine.transition(removed, OrderStatus.Canceled);
@@ -185,30 +177,19 @@ public class OrderBook {
 
     /**
      * 从指定方向的订单簿中移除指定客户端订单号对应的订单。
-     * 通过 clOrderIdToPrice 索引直接定位价格档位，复杂度 O(k)，k 为同价档订单数。
+     * 通过 clOrderIdToPrice 定位价格档，再在该档 LinkedHashMap 中 O(1) 删除，整体 O(1)。
      *
      * @param clOrderId 待移除的客户端订单号
      * @param side 订单簿方向（买单或卖单）
      * @return 被移除的订单实体；若未找到则返回 null
      */
-    private Order removeFromSide(String clOrderId, TreeMap<Double, LinkedList<Order>> side) {
+    private Order removeFromSide(String clOrderId, TreeMap<Double, LinkedHashMap<String, Order>> side) {
         Double price = clOrderIdToPrice.get(clOrderId);
         if (price == null) return null;
-
-        LinkedList<Order> queue = side.get(price);
+        LinkedHashMap<String, Order> queue = side.get(price);
         if (queue == null) return null;
-
-        Order removed = null;
-        Iterator<Order> it = queue.iterator();
-        while (it.hasNext()) {
-            Order o = it.next();
-            if (clOrderId.equals(o.getClOrderId())) {
-                it.remove();
-                removed = o;
-                break;
-            }
-        }
-        if (queue.isEmpty()) side.remove(price);
+        Order removed = queue.remove(clOrderId);
+        if (removed != null && queue.isEmpty()) side.remove(price);
         return removed;
     }
 
