@@ -42,7 +42,7 @@ public class OrderEntity {
     @Column(columnDefinition = "integer not null default 0")
     private int orderQty;
     @Column(columnDefinition = "integer not null default 0")
-    private int cumQty = 0;
+    private int cumQty;
     @Enumerated(EnumType.STRING)
     @Column(columnDefinition = "varchar(255) check (status in ('New','PartiallyFilled','Filled','Canceled','Rejected')) default 'New'")
     private OrderStatus status;

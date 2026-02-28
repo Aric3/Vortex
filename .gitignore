@@ -12,11 +12,11 @@ Thumbs.db
 
 # 2. Spring Boot / Maven / Gradle
 
-trade-core/target/
-trade-core/build/
-trade-core/.mvn/
-trade-core/mvnw
-trade-core/mvnw.cmd
+vortex-core/target/
+vortex-core/build/
+vortex-core/.mvn/
+vortex-core/mvnw
+vortex-core/mvnw.cmd
 *.class
 *.jar
 *.war
@@ -26,14 +26,14 @@ trade-core/mvnw.cmd
 
 # 3. Vue.js (Node / Vite / Webpack)
 
-trade-ui/node_modules/
-trade-ui/dist/
-trade-ui/dist-ssr/
-trade-ui/*.local
-trade-ui/.eslintcache
-trade-ui/npm-debug.log*
-trade-ui/yarn-debug.log*
-trade-ui/yarn-error.log*
+vortex-ui/node_modules/
+vortex-ui/dist/
+vortex-ui/dist-ssr/
+vortex-ui/*.local
+vortex-ui/.eslintcache
+vortex-ui/npm-debug.log*
+vortex-ui/yarn-debug.log*
+vortex-ui/yarn-error.log*
 
 
 # 4. Python
@@ -42,9 +42,9 @@ trade-ui/yarn-error.log*
 **/*.py[cod]
 **/*$py.class
 **/.pytest_cache/
-trade-simulators/venv/
-trade-simulators/.env
-trade-analysis/venv/
+vortex-simulators/venv/
+vortex-simulators/.env
+vortex-analysis/venv/
 .python-version
 
 

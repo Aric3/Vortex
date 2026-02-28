@@ -72,7 +72,8 @@ public class PersistenceService {
                 orderRepository.save(e);
             }
         }
-
+        // FIXME:ORDER_UPDATED 幂等：findByClOrderId 可能返回多个订单（真实交易情况下不会出现）
+        // 状态更新只会涉及NEW/PARTIALLY_FILLED/FILLED/CANCELED 的合法流转，其他状态不会更新
         for (Order order : ordersToUpdate) {
             OrderEntity existing = orderRepository.findByClOrderId(order.getClOrderId());
             if (existing != null) {
