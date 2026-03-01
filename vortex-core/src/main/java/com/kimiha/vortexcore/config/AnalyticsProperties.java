@@ -1,4 +1,4 @@
-package com.kimiha.vortexcore.analytics;
+package com.kimiha.vortexcore.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 

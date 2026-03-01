@@ -1,7 +1,7 @@
 package com.kimiha.vortexcore.controller;
 
-import com.kimiha.vortexcore.analytics.AnalyticsMetrics;
-import com.kimiha.vortexcore.analytics.AnalyticsService;
+import com.kimiha.vortexcore.model.AnalyticsMetrics;
+import com.kimiha.vortexcore.service.AnalyticsService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;

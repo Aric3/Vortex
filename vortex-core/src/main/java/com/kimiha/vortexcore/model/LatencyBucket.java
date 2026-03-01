@@ -1,4 +1,4 @@
-package com.kimiha.vortexcore.analytics;
+package com.kimiha.vortexcore.model;
 
 /**
  * 成交延时分桶项：bucket 为延时区间，count 为该区间内订单数量。

@@ -6,7 +6,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
-import com.kimiha.vortexcore.analytics.AnalyticsProperties;
+import com.kimiha.vortexcore.config.AnalyticsProperties;
 
 @SpringBootApplication
 @EnableAsync

@@ -1,4 +1,4 @@
-package com.kimiha.vortexcore.analytics;
+package com.kimiha.vortexcore.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -6,6 +6,9 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import com.kimiha.vortexcore.config.AnalyticsProperties;
+import com.kimiha.vortexcore.model.AnalyticsMetrics;
+import com.kimiha.vortexcore.model.LatencyBucket;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
