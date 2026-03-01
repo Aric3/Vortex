@@ -1,9 +1,12 @@
-package com.kimiha.vortexcore.analytics;
+package com.kimiha.vortexcore.service;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
+import com.kimiha.vortexcore.config.AnalyticsProperties;
+import com.kimiha.vortexcore.model.AnalyticsMetrics;
+import com.kimiha.vortexcore.model.LatencyBucket;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;

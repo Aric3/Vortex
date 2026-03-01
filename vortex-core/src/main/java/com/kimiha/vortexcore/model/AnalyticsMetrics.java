@@ -1,4 +1,4 @@
-package com.kimiha.vortexcore.analytics;
+package com.kimiha.vortexcore.model;
 
 import java.util.List;
 
