@@ -140,6 +140,7 @@ public class OrderEventHandler implements EventHandler<OrderEvent> {
             }
         }
 
+        book.refreshPublishedSnapshot();
         if (eventPublisher != null) {
             eventPublisher.publishEvent(new OrderBookChangedEvent(this, securityId));
         }
@@ -159,6 +160,7 @@ public class OrderEventHandler implements EventHandler<OrderEvent> {
         OrderBook book = matchingEngine.getOrderBook(securityId);
         // 从订单簿中移除原始订单
         Order removed = book.cancelByClOrderId(cancellation);
+        book.refreshPublishedSnapshot();
 
         if (reportStreamService != null) {
             if (removed != null) {

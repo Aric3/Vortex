@@ -13,7 +13,7 @@ import org.springframework.context.SmartLifecycle;
 public class DistruptorManager {
 
     private static final int ORDER_BUFFER_SIZE = 1024 * 16; // 16K
-    private static final int PERSISTENCE_BUFFER_SIZE = 1024 * 8; // 8K
+    private static final int PERSISTENCE_BUFFER_SIZE = 1024 * 16; // 16K，降低持久化背压到撮合线程的风险
 
     @Bean
     public ShardDisruptorHolder shardDisruptorHolder(

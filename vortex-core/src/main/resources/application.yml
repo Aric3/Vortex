@@ -12,7 +12,7 @@ spring:
     datasource:
         hikari:
             connection-timeout: 30000
-            maximum-pool-size: 1
+            maximum-pool-size: 4  # 提高以降低持久化背压，便于后续多消费者或并行批处理
         url: jdbc:sqlite:vortex.db
         driver-class-name: org.sqlite.JDBC
     threads:

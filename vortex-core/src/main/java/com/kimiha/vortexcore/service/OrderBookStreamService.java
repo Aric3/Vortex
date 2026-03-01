@@ -42,7 +42,7 @@ public class OrderBookStreamService {
     }
 
     private OrderBookSnapshot currentSnapshot(String securityId, int depth) {
-        return matchingEngine.getOrderBook(securityId).getSnapshot(depth);
+        return matchingEngine.getOrderBook(securityId).getPublishedSnapshot(depth);
     }
 
     /**
