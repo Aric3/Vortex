@@ -31,7 +31,7 @@ public class OrderBookController {
             @PathVariable String securityId,
             @RequestParam(defaultValue = "10") int depth) {
         if (depth <= 0 || depth > 50) depth = DEFAULT_DEPTH;
-        OrderBookSnapshot snapshot = matchingEngine.getOrderBook(securityId).getSnapshot(depth);
+        OrderBookSnapshot snapshot = matchingEngine.getOrderBook(securityId).getPublishedSnapshot(depth);
         return Result.success(snapshot);
     }
 

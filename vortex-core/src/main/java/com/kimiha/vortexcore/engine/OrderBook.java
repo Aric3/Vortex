@@ -22,6 +22,12 @@ public class OrderBook {
     // clOrderId -> price 索引：用于 O(1) 唯一性检测，以及撤单时 O(1) 定位价格档（同档用 LinkedHashMap 按 id 删除）
     private final Map<String, Double> clOrderIdToPrice = new HashMap<>();
 
+    // 发布快照的最大档位深度，与 REST 上限一致；仅写线程刷新，读者通过 getPublishedSnapshot(depth) 截断
+    private static final int PUBLISHED_SNAPSHOT_MAX_DEPTH = 20;
+    // 由写线程在每次变更后刷新的不可变快照；读者只读此引用，不迭代 bids/asks
+    // volatile 保证可见性与安全发布
+    private volatile OrderBookSnapshot publishedSnapshot;
+
     public OrderBook(String securityId) {
         this.securityId = securityId;
     }
@@ -37,7 +43,7 @@ public class OrderBook {
     }
 
     /**
-     * 订单簿快照：按价格档位聚合，买盘从高到低、卖盘从低到高，各取前 depth 档。
+     * 订单簿快照：按价格档位聚合，买盘从高到低、卖盘从低到高，各取前 depth 档
      */
     public OrderBookSnapshot getSnapshot(int depth) {
         List<OrderBookLevel> bidLevels = new ArrayList<>();
@@ -59,6 +65,33 @@ public class OrderBook {
             a++;
         }
         return new OrderBookSnapshot(securityId, bidLevels, askLevels, System.currentTimeMillis());
+    }
+
+    /**
+     * 由写线程在每次 executeMatch / cancelByClOrderId 后调用，刷新对外发布的快照；读者通过 getPublishedSnapshot(depth) 读取。
+     */
+    public void refreshPublishedSnapshot() {
+        this.publishedSnapshot = getSnapshot(PUBLISHED_SNAPSHOT_MAX_DEPTH);
+    }
+
+    /**
+     * 读者仅读已发布的快照并按 depth 截断拷贝，不迭代活订单簿，保证并发读安全
+     *
+     * @param depth 返回的买/卖盘档位数量上限
+     * @return 不可变快照的截断拷贝；若尚未发布过则返回空档位快照
+     */
+    public OrderBookSnapshot getPublishedSnapshot(int depth) {
+        OrderBookSnapshot snap = publishedSnapshot;
+        if (snap == null) {
+            return new OrderBookSnapshot(securityId, Collections.emptyList(), Collections.emptyList(), System.currentTimeMillis());
+        }
+        List<OrderBookLevel> bids = snap.getBids();
+        List<OrderBookLevel> asks = snap.getAsks();
+        int bSize = Math.min(depth, bids != null ? bids.size() : 0);
+        int aSize = Math.min(depth, asks != null ? asks.size() : 0);
+        List<OrderBookLevel> bidList = (bids == null || bSize == 0) ? Collections.emptyList() : new ArrayList<>(bids.subList(0, bSize));
+        List<OrderBookLevel> askList = (asks == null || aSize == 0) ? Collections.emptyList() : new ArrayList<>(asks.subList(0, aSize));
+        return new OrderBookSnapshot(securityId, bidList, askList, snap.getTimestamp());
     }
 
     /**
