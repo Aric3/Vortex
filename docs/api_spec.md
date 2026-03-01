@@ -1,4 +1,4 @@
-# Vortex 系统接口规范 v2.0
+# Vortex 系统接口规范 v2.1
 ## 1. 客户端相关接口（/api/v1/vclient）
 ### 1.1 下单
 - 请求方式：POST
@@ -194,3 +194,40 @@
     "rejectText": "char[64]" // 错误原因说明 (64字节字符串)
 }
 ```
+
+---
+
+## 3. Analytics 接口
+
+### 3.1 获取实时分析指标
+- 请求方式：`GET`
+- 接口路径：`/api/v1/analytics/metrics`
+- 说明：返回当前缓存的实时指标快照（默认每 1 秒刷新一次）。
+
+#### 响应示例
+```json
+{
+  "washRejects": 767,
+  "totalOrders": 12181,
+  "washRatio": 0.062967,
+  "latencyBuckets": [
+    { "bucket": "0-1ms", "count": 1567 },
+    { "bucket": "2-5ms", "count": 459 },
+    { "bucket": "6-10ms", "count": 95 },
+    { "bucket": "11-50ms", "count": 753 },
+    { "bucket": "51-100ms", "count": 55 },
+    { "bucket": "101-500ms", "count": 448 },
+    { "bucket": ">500ms", "count": 1955 }
+  ],
+  "timestamp": 1772159000123
+}
+```
+
+#### 字段说明
+- `washRejects`：对敲拒绝订单数（`reject_code = 4001`）。
+- `totalOrders`：订单总量（`orders` 通过订单 + `order_rejects` 拒绝订单，用于口径分母）。
+- `washRatio`：对敲占比（`washRejects / totalOrders`）。
+- `latencyBuckets`：成交延时分桶统计（按订单首笔成交时间计算，每个订单只计一次）。
+- `bucket`：延时区间（毫秒）。
+- `count`：该区间内订单数量。
+- `timestamp`：指标快照更新时间（Unix 毫秒时间戳）。
