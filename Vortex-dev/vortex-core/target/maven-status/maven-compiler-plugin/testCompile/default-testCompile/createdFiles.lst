@@ -1,0 +1,10 @@
+com\kimiha\vortexcore\persistence\OrderAndTradePersistenceIntegrationTest.class
+com\kimiha\vortexcore\service\AnalyticsServiceIntegrationTest.class
+com\kimiha\vortexcore\disruptor\OrderEventRouterTest.class
+com\kimiha\vortexcore\engine\OrderBookCancelTest.class
+com\kimiha\vortexcore\service\TradingServiceValidationTest.class
+com\kimiha\vortexcore\engine\OrderBookMatchResultStateTest.class
+com\kimiha\vortexcore\model\OrderStateMachineTest.class
+com\kimiha\vortexcore\Utils.class
+com\kimiha\vortexcore\disruptor\DisruptorOrderProcessingTest.class
+com\kimiha\vortexcore\disruptor\OrderEventHandlerTest.class

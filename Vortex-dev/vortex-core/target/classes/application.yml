@@ -1,0 +1,29 @@
+server:
+    # 关闭时立即停止，不等待活跃请求（避免 SSE /stream/reports 长连接导致卡住 30 秒）
+    shutdown: immediate
+
+vortex:
+    matching:
+        shards: 8  # 订单事件分片数
+
+spring:
+    application:
+        name: vortex-core
+    datasource:
+        hikari:
+            connection-timeout: 30000
+            maximum-pool-size: 4  # 提高以降低持久化背压，便于后续多消费者或并行批处理
+        url: jdbc:sqlite:vortex.db
+        driver-class-name: org.sqlite.JDBC
+    threads:
+        virtual:
+            enabled: true
+    jpa:
+        hibernate:
+            ddl-auto: update
+        show-sql: true
+
+analytics:
+    enabled: true
+    refresh-interval-ms: 1000
+        
