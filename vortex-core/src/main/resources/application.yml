@@ -26,4 +26,34 @@ spring:
 analytics:
     enabled: true
     refresh-interval-ms: 1000
-        
+
+# AllTick 实时行情（可选）。enabled=true 且配置 token 后启动时拉取 HTTP 快照并可选 WebSocket
+# mode: real_only=仅真实；simulated_only=仅模拟（可用 HTTP 拉一次作锚点）；real_then_simulated=先真实再由模拟覆盖
+alltick:
+    enabled: true
+    mode: real_only
+    # HTTP 快照：0=仅启动拉一次，>0=定时刷新间隔（毫秒）
+    http-refresh-interval-ms: 0
+    quote-url: wss://quote.alltick.co/quote-stock-b-ws-api
+    token: 74bcfc47740d31ded48cbed4b694971d-c-app
+    symbols:
+        - "600030.SH"
+        - "000001.SZ"
+        - "700.HK"
+        - "9988.HK"
+        - "AAPL.US"
+        - "TSLA.US"
+    heartbeat-interval-ms: 10000
+    reconnect-interval-ms: 5000
+
+# 模拟行情（当 alltick.mode=simulated_only 或 real_then_simulated 时生效）
+simulation:
+    interval-ms: 1000
+    volatility: 0.01
+    trend: flat
+    trend-step: 0.02
+    mean-reversion-rate: 0.1
+    default-initial-price: 10.0
+    # symbols 为空则使用 alltick.symbols
+    # initial-price: { "600030.SH": 27.0 }
+
