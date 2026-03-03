@@ -32,6 +32,11 @@
       <TradeDistributionChart :shareholder-id="shareholderId" :security-id="securityId" />
     </main>
 
+    <section class="grid secondary">
+      <TradingConsole :shareholder-id="shareholderId" :security-id="securityId" />
+      <AnalyticsPanel />
+    </section>
+
     <footer class="footer">
       <div class="tip">
         提示：如果你看到“连接异常”，先确认后端已启动（vortex-core），并且 vite 代理已配置（/api → 后端端口）。
@@ -44,6 +49,8 @@
 import { ref } from "vue";
 import OrderBookCompareChart from "../components/charts/OrderBookCompareChart.vue";
 import TradeDistributionChart from "../components/charts/TradeDistributionChart.vue";
+import TradingConsole from "../components/TradingConsole.vue";
+import AnalyticsPanel from "../components/AnalyticsPanel.vue";
 
 const shareholderId = ref<string>("A001");
 const securityId = ref<string>("600030");
@@ -97,6 +104,9 @@ input::placeholder{
   display:grid;
   grid-template-columns: 1fr;
   gap: 12px;
+}
+.grid.secondary{
+  margin-top: 12px;
 }
 @media (min-width: 1024px){
   .grid{ grid-template-columns: 1fr 1fr; }

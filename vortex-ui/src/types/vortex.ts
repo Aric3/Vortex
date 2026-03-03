@@ -38,3 +38,49 @@ export type ExecutionReport = {
   ts?: number | string;
   [k: string]: any;
 };
+
+export type OrderRequest = {
+  clOrderId: string;
+  market: string;
+  securityId: string;
+  side: 'B' | 'S';
+  qty: number;
+  price: number;
+  shareholderId: string;
+};
+
+export type CancelOrderRequest = {
+  clOrderId: string;
+  origClOrderId: string;
+  market: string;
+  securityId: string;
+  side: 'B' | 'S';
+  shareholderId: string;
+};
+
+export type OrderReportType =
+  | 'ORDER_CONFIRM'
+  | 'ORDER_REJECT'
+  | 'ORDER_EXECUTION'
+  | 'CANCEL_CONFIRM'
+  | 'CANCEL_REJECT';
+
+export type OrderReportEnvelopeTyped<T = any> = {
+  reportType: OrderReportType;
+  data: T;
+  [k: string]: any;
+};
+
+export type AnalyticsLatencyBucket = {
+  bucket: string;
+  count: number;
+};
+
+export type AnalyticsMetrics = {
+  washRejects: number;
+  totalOrders: number;
+  washRatio: number;
+  latencyBuckets: AnalyticsLatencyBucket[];
+  timestamp: number;
+};
+
