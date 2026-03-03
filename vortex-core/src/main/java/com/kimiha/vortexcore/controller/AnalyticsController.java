@@ -1,6 +1,7 @@
 package com.kimiha.vortexcore.controller;
 
 import com.kimiha.vortexcore.model.AnalyticsMetrics;
+import com.kimiha.vortexcore.model.Result;
 import com.kimiha.vortexcore.service.AnalyticsService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -16,7 +17,7 @@ public class AnalyticsController {
     }
 
     @GetMapping("/metrics")
-    public AnalyticsMetrics getMetrics() {
-        return analyticsService.getMetrics();
+    public Result getMetrics() {
+        return Result.success(analyticsService.getMetrics(), "Metrics retrieved successfully");
     }
 }
