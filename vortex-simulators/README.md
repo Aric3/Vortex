@@ -1,7 +1,3 @@
-# Vortex 交易系统负载测试
-
-使用 Locust 模拟高并发交易流量，验证系统在压力下的稳定性和性能。
-
 ## 安装依赖
 
 ```bash
@@ -11,7 +7,7 @@ pip install -r requirements.txt
 
 ## 运行测试
 
-### 方式一：Web 界面
+### 方式一：Web 界面模式（推荐）
 
 启动 Locust Web 界面：
 
@@ -42,7 +38,7 @@ locust -f load_test.py --host=http://localhost:8080 --users=100 --spawn-rate=10 
 
 ## 测试场景
 
-脚本模拟了三种交易场景：
+脚本模拟了四种交易场景：
 
 1. **买入订单**（权重 10）
    - 随机选择股票
@@ -63,7 +59,7 @@ locust -f load_test.py --host=http://localhost:8080 --users=100 --spawn-rate=10 
 
 ## 订单数据格式
 
-每个订单包含以下字段：
+### 下单请求
 
 ```json
 {
@@ -75,6 +71,24 @@ locust -f load_test.py --host=http://localhost:8080 --users=100 --spawn-rate=10 
   "price": 25.50,
   "shareholderId": "SH12345678"
 }
+```
+
+
+
+### 撤单请求
+
+```json
+{
+  "clOrderId": "ABCDEF1234567890",
+  "origClOrderId": "1234567890ABCDEF",
+  "market": "XSHG",
+  "securityId": "600030",
+  "side": "B",
+  "shareholderId": "SH12345678"
+}
+```
+
+
 ```
 
 字段说明：
@@ -110,3 +124,33 @@ locust -f load_test.py --host=http://localhost:8080 --users=100 --spawn-rate=10 
 - **RPS**：每秒请求数
 - **响应时间**：平均值、中位数、95%、99% 分位数
 - **并发用户数**：实际运行的虚拟用户数
+```
+## 常见测试场景
+
+### 1. 基准测试（10 用户，1 分钟）
+```bash
+locust -f load_test.py --host=http://localhost:8080 --users=10 --spawn-rate=2 --run-time=1m --headless
+```
+
+### 2. 中等压力（100 用户，5 分钟）
+```bash
+locust -f load_test.py --host=http://localhost:8080 --users=100 --spawn-rate=10 --run-time=5m --headless
+```
+
+### 3. 高压力测试（500 用户，10 分钟）
+```bash
+locust -f load_test.py --host=http://localhost:8080 --users=500 --spawn-rate=20 --run-time=10m --headless
+```
+
+### 4. 极限压力（1000 用户，持续运行）
+```bash
+locust -f load_test.py --host=http://localhost:8080 --users=1000 --spawn-rate=50 --headless
+```
+
+## 注意事项
+
+1. 确保目标服务器已启动并可访问
+2. 根据服务器性能调整并发用户数
+3. 监控服务器资源使用情况（CPU、内存、网络）
+4. 建议从小规模测试开始，逐步增加压力
+5. 测试环境应与生产环境隔离
