@@ -6,10 +6,10 @@ import lombok.Data;
 
 import java.util.List;
 
-/** AllTick HTTP 最新价接口返回：/trade-tick */
+/** AllTick HTTP 盘口接口返回：/depth-tick */
 @Data
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class AllTickHttpSnapshot {
+public class AllTickHttpHandicapSnapshot {
 
     private Integer ret;
     private DataHolder data;
@@ -18,16 +18,17 @@ public class AllTickHttpSnapshot {
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class DataHolder {
         @JsonProperty("tick_list")
-        private List<TickItem> tickList;
+        private List<HandicapItem> tickList;
     }
 
     @Data
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class TickItem {
+    public static class HandicapItem {
         private String code;
-        private String price;
-        private String volume;
+        private String seq;
         @JsonProperty("tick_time")
         private String tickTime;
+        private List<AllTickHandicapLevelDto> bids;
+        private List<AllTickHandicapLevelDto> asks;
     }
 }

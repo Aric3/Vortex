@@ -6,9 +6,11 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import com.kimiha.vortexcore.config.QuotationProperties;
-import com.kimiha.vortexcore.model.QuoteSnapshot;
+import com.kimiha.vortexcore.model.QuoteLevel;
+import com.kimiha.vortexcore.model.TickSnapshot;
 import com.kimiha.vortexcore.quotation.cache.QuotationCache;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -53,7 +55,7 @@ public class SimulatedQuoteEngine {
         double defaultPrice = sim.getDefaultInitialPrice();
 
         for (String code : symbols) {
-            QuoteSnapshot current = quoteCache.get(code);
+            TickSnapshot current = quoteCache.getTick(code);
             double lastPrice;
             long lastVolume;
             if (current != null) {
@@ -71,9 +73,52 @@ public class SimulatedQuoteEngine {
             nextPrice = roundToDecimals(nextPrice, priceDecimalsForCode(code));
             long nextVolume = lastVolume + (long) (RANDOM.nextInt(100) + 10);
 
-            QuoteSnapshot snapshot = new QuoteSnapshot(code, nextPrice, nextVolume, nowMs);
-            quoteCache.put(code, snapshot);
+            quoteCache.putTick(code, nextPrice, nextVolume, nowMs);
+
+            List<QuoteLevel> bids = buildSimulatedBids(nextPrice, code);
+            List<QuoteLevel> asks = buildSimulatedAsks(nextPrice, code);
+            quoteCache.putHandicap(code, bids, asks, nowMs);
         }
+    }
+
+    /** 生成模拟买盘五档：买一略低于 lastPrice，依次下探 */
+    private List<QuoteLevel> buildSimulatedBids(double lastPrice, String code) {
+        double tickSize = tickSizeForCode(code);
+        int decimals = priceDecimalsForCode(code);
+        List<QuoteLevel> bids = new ArrayList<>(5);
+        for (int i = 1; i <= 5; i++) {
+            double price = roundToDecimals(lastPrice - i * tickSize, decimals);
+            if (price <= 0) break;
+            long volume = baseVolumeForCode(code) + RANDOM.nextInt(500);
+            bids.add(new QuoteLevel(price, volume));
+        }
+        return bids;
+    }
+
+    /** 生成模拟卖盘五档：卖一略高于 lastPrice，依次上探 */
+    private List<QuoteLevel> buildSimulatedAsks(double lastPrice, String code) {
+        double tickSize = tickSizeForCode(code);
+        int decimals = priceDecimalsForCode(code);
+        List<QuoteLevel> asks = new ArrayList<>(5);
+        for (int i = 1; i <= 5; i++) {
+            double price = roundToDecimals(lastPrice + i * tickSize, decimals);
+            long volume = baseVolumeForCode(code) + RANDOM.nextInt(500);
+            asks.add(new QuoteLevel(price, volume));
+        }
+        return asks;
+    }
+
+    /** 最小变动单位：A股/美股 0.01，港股 0.01 */
+    private static double tickSizeForCode(String code) {
+        return 0.01;
+    }
+
+    /** 每档基准量：A股 100 手起，港股/美股按价格适当放大 */
+    private long baseVolumeForCode(String code) {
+        if (code == null) return 100;
+        if (code.endsWith(".HK")) return 100;
+        if (code.endsWith(".US")) return 100;
+        return 100;
     }
 
     private double computeNextPrice(String trend, double lastPrice, double anchorOrMean,
