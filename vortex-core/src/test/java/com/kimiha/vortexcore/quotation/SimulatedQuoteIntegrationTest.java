@@ -7,7 +7,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
-import com.kimiha.vortexcore.model.QuoteSnapshot;
+import com.kimiha.vortexcore.model.TickSnapshot;
 import com.kimiha.vortexcore.quotation.source.SimulatedQuoteEngine;
 import com.kimiha.vortexcore.service.QuotationService;
 
@@ -36,8 +36,8 @@ class SimulatedQuoteIntegrationTest {
         assertNotNull(simulatedQuoteEngine, "SimulatedQuoteEngine should be created when mode=simulated_only");
         assertNotNull(marketDataService);
         simulatedQuoteEngine.tick();
-        QuoteSnapshot q = marketDataService.getQuote("600030");
-        assertNotNull(q, "Quote should be available after tick (600030 -> 600030.SH)");
+        TickSnapshot q = marketDataService.getTick("600030");
+        assertNotNull(q, "Tick should be available after tick (600030 -> 600030.SH)");
         assertTrue(q.getLastPrice() > 0);
     }
 }

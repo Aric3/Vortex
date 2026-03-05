@@ -31,16 +31,20 @@ analytics:
 # source: real_only=仅真实 | simulated_only=仅模拟 | real_then_simulated=先真实再由模拟推进
 quotation:
     enabled: true
-    source: real_only
+    source: simulated_only
     alltick:
         quote-url: wss://quote.alltick.co/quote-stock-b-ws-api
-        token: 74bcfc47740d31ded48cbed4b694971d-c-app
+        token: d809da32986f54f1a19ae469dd54a3d5-c-app
+        # subscription-mode: tick=仅最新成交价 | handicap=仅买卖五档 | both=两者都订阅
+        subscription-mode: tick
         symbols:
             - "600030.SH" # 中信证券
             - "600519.SH" # 贵州茅台    
             - "600036.SH" # 招商银行
             - "000001.SZ" # 平安银行
             - "000858.SZ" # 五粮液
+            - "0700.HK" # 腾讯控股 (Tencent)
+            - "AAPL.US" # 苹果公司 (Apple)
             
         heartbeat-interval-ms: 10000
         reconnect-interval-ms: 5000
@@ -57,10 +61,14 @@ quotation:
             - "600036.SH" # 招商银行    
             - "000001.SZ" # 平安银行
             - "000858.SZ" # 五粮液
+            - "0700.HK" # 腾讯控股 (Tencent)
+            - "AAPL.US" # 苹果公司 (Apple)
         initial-price: # 模拟行情初始价格，格式：股票代码: 价格，如 "600030.SH": 27.0
             "600030.SH": 26.15
             "600519.SH": 1395.48
             "600036.SH": 39.16
             "000001.SZ": 10.82
             "000858.SZ": 101.17
+            "0700.HK": 300.0
+            "AAPL.US": 150.0
 

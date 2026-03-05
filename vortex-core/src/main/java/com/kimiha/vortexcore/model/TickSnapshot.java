@@ -5,13 +5,12 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * 缓存的行情快照：最新价、成交量、时间戳等，供撮合/风控读取。
+ * 最新成交价快照（逐笔）：仅含最新价、成交量、时间戳，来自 AllTick 22998 或模拟引擎
  */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class QuoteSnapshot {
-
+public class TickSnapshot {
     /** AllTick 标的 code，如 600030.SH */
     private String code;
     /** 最新成交价 */

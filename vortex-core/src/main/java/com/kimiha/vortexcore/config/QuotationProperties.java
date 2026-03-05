@@ -46,6 +46,10 @@ public class QuotationProperties {
         private List<String> symbols = new ArrayList<>();
         private long heartbeatIntervalMs = 10_000;
         private long reconnectIntervalMs = 5_000;
+        /**
+         * 订阅类型：tick=仅最新成交价(22998)，handicap=仅买卖五档(22999)，both=两者都订阅
+         */
+        private String subscriptionMode = "tick";
     }
 
     /** 模拟行情源配置 */

@@ -4,7 +4,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import com.kimiha.vortexcore.config.QuotationProperties;
-import com.kimiha.vortexcore.model.QuoteSnapshot;
+import com.kimiha.vortexcore.model.TickSnapshot;
 import com.kimiha.vortexcore.quotation.cache.QuotationCache;
 import com.kimiha.vortexcore.quotation.source.SimulatedQuoteEngine;
 
@@ -42,12 +42,12 @@ class SimulatedQuoteEngineTest {
     @Test
     void trendUp_multipleTicks_priceIncreases() {
         quotationProperties.getSimulation().setTrend("trend_up");
-        quoteCache.put(CODE, new QuoteSnapshot(CODE, 10.0, 0L, 0L));
-        double first = quoteCache.get(CODE).getLastPrice();
+        quoteCache.putTick(CODE, 10.0, 0L, 0L);
+        double first = quoteCache.getTick(CODE).getLastPrice();
         for (int i = 0; i < 20; i++) {
             engine.tick();
         }
-        QuoteSnapshot after = quoteCache.get(CODE);
+        TickSnapshot after = quoteCache.getTick(CODE);
         assertNotNull(after);
         assertTrue(after.getLastPrice() > first, "trend_up: price should increase");
     }
@@ -55,12 +55,12 @@ class SimulatedQuoteEngineTest {
     @Test
     void trendDown_multipleTicks_priceDecreases() {
         quotationProperties.getSimulation().setTrend("trend_down");
-        quoteCache.put(CODE, new QuoteSnapshot(CODE, 10.0, 0L, 0L));
-        double first = quoteCache.get(CODE).getLastPrice();
+        quoteCache.putTick(CODE, 10.0, 0L, 0L);
+        double first = quoteCache.getTick(CODE).getLastPrice();
         for (int i = 0; i < 20; i++) {
             engine.tick();
         }
-        QuoteSnapshot after = quoteCache.get(CODE);
+        TickSnapshot after = quoteCache.getTick(CODE);
         assertNotNull(after);
         assertTrue(after.getLastPrice() < first, "trend_down: price should decrease");
     }
@@ -69,11 +69,11 @@ class SimulatedQuoteEngineTest {
     void meanReversion_priceMovesTowardAnchor() {
         quotationProperties.getSimulation().setTrend("mean_reversion");
         quotationProperties.getSimulation().setVolatility(0);
-        quoteCache.put(CODE, new QuoteSnapshot(CODE, 100.0, 0L, 0L));
+        quoteCache.putTick(CODE, 100.0, 0L, 0L);
         engine.tick();
-        quoteCache.put(CODE, new QuoteSnapshot(CODE, 150.0, 0L, 0L));
+        quoteCache.putTick(CODE, 150.0, 0L, 0L);
         engine.tick();
-        QuoteSnapshot after = quoteCache.get(CODE);
+        TickSnapshot after = quoteCache.getTick(CODE);
         assertNotNull(after);
         assertTrue(after.getLastPrice() < 150 && after.getLastPrice() >= 100,
                 "mean_reversion: price should move toward 100 from 150");
@@ -84,7 +84,7 @@ class SimulatedQuoteEngineTest {
         quotationProperties.getSimulation().setTrend("flat");
         quotationProperties.getSimulation().setDefaultInitialPrice(27.5);
         engine.tick();
-        QuoteSnapshot snap = quoteCache.get(CODE);
+        TickSnapshot snap = quoteCache.getTick(CODE);
         assertNotNull(snap);
         assertEquals(CODE, snap.getCode());
         assertTrue(snap.getLastPrice() >= 27.0 && snap.getLastPrice() <= 28.0,
@@ -96,6 +96,6 @@ class SimulatedQuoteEngineTest {
         quotationProperties.getSimulation().setSymbols(List.of("000001.SZ"));
         quotationProperties.getAlltick().setSymbols(List.of(CODE));
         engine.tick();
-        assertNotNull(quoteCache.get("000001.SZ"));
+        assertNotNull(quoteCache.getTick("000001.SZ"));
     }
 }
