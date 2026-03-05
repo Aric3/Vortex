@@ -4,10 +4,10 @@ import com.kimiha.vortexcore.model.ProcessOrderResult;
 import com.kimiha.vortexcore.model.Result;
 import com.kimiha.vortexcore.model.ResultCode;
 import com.kimiha.vortexcore.model.ValidationResult;
-import com.kimiha.vortexcore.model.dto.OrderReportEnvelope;
 import com.kimiha.vortexcore.model.dto.OrderResponse;
-import com.kimiha.vortexcore.model.dto.CancelRequest;
 import com.kimiha.vortexcore.model.dto.OrderSubmitRequest;
+import com.kimiha.vortexcore.model.dto.report.CancelRequest;
+import com.kimiha.vortexcore.model.dto.report.OrderReportEnvelope;
 import com.kimiha.vortexcore.service.OrderReportStreamService;
 import com.kimiha.vortexcore.service.OrderService;
 

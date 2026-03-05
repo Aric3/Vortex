@@ -1,7 +1,8 @@
 package com.kimiha.vortexcore.service;
 
-import com.kimiha.vortexcore.model.dto.OrderReportEnvelope;
-import com.kimiha.vortexcore.model.dto.ReportType;
+import com.kimiha.vortexcore.model.dto.report.OrderReportEnvelope;
+import com.kimiha.vortexcore.model.dto.report.ReportType;
+
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;

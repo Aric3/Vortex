@@ -7,8 +7,8 @@ import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.kimiha.vortexcore.disruptor.OrderEvent;
 import com.kimiha.vortexcore.model.entity.OrderEntity;
+import com.kimiha.vortexcore.disruptor.order.OrderEvent;
 import com.kimiha.vortexcore.model.ValidationResult;
 import com.kimiha.vortexcore.model.domain.Order;
 import com.kimiha.vortexcore.repository.OrderRepository;

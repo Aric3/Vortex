@@ -1,8 +1,10 @@
 package com.kimiha.vortexcore.service;
 
-import com.kimiha.vortexcore.engine.MatchingEngine;
-import com.kimiha.vortexcore.engine.OrderBookSnapshot;
 import org.springframework.stereotype.Service;
+
+import com.kimiha.vortexcore.matching.MatchingEngine;
+import com.kimiha.vortexcore.matching.OrderBookSnapshot;
+
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
 

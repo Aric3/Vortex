@@ -7,11 +7,12 @@ import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 import com.kimiha.vortexcore.config.AnalyticsProperties;
+import com.kimiha.vortexcore.config.QuotationProperties;
 
 @SpringBootApplication
 @EnableAsync
 @EnableScheduling
-@EnableConfigurationProperties(AnalyticsProperties.class)
+@EnableConfigurationProperties({ AnalyticsProperties.class, QuotationProperties.class })
 public class VortexCoreApplication {
 
 	public static void main(String[] args) {

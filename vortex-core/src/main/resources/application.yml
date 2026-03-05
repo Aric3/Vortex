@@ -26,4 +26,41 @@ spring:
 analytics:
     enabled: true
     refresh-interval-ms: 1000
-        
+
+# 行情来源统一配置：alltick（真实）与 simulation（模拟）
+# source: real_only=仅真实 | simulated_only=仅模拟 | real_then_simulated=先真实再由模拟推进
+quotation:
+    enabled: true
+    source: real_only
+    alltick:
+        quote-url: wss://quote.alltick.co/quote-stock-b-ws-api
+        token: 74bcfc47740d31ded48cbed4b694971d-c-app
+        symbols:
+            - "600030.SH" # 中信证券
+            - "600519.SH" # 贵州茅台    
+            - "600036.SH" # 招商银行
+            - "000001.SZ" # 平安银行
+            - "000858.SZ" # 五粮液
+            
+        heartbeat-interval-ms: 10000
+        reconnect-interval-ms: 5000
+    simulation:
+        interval-ms: 1000 # 模拟行情间隔时间，单位：毫秒
+        volatility: 0.01 # 模拟行情波动率
+        trend: flat # 模拟行情趋势
+        trend-step: 0.02 # 模拟行情趋势步长
+        mean-reversion-rate: 0.1 # 模拟行情均值回归率
+        default-initial-price: 10.0 # 模拟行情默认初始价格
+        symbols:
+            - "600030.SH" # 中信证券
+            - "600519.SH" # 贵州茅台
+            - "600036.SH" # 招商银行    
+            - "000001.SZ" # 平安银行
+            - "000858.SZ" # 五粮液
+        initial-price: # 模拟行情初始价格，格式：股票代码: 价格，如 "600030.SH": 27.0
+            "600030.SH": 26.15
+            "600519.SH": 1395.48
+            "600036.SH": 39.16
+            "000001.SZ": 10.82
+            "000858.SZ": 101.17
+
