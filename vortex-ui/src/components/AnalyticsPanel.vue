@@ -3,7 +3,6 @@
     <div class="head">
       <div>
         <div class="title">风控与性能指标</div>
-        <div class="sub">从后端 /api/v1/analytics/metrics 拉取的实时快照。</div>
       </div>
       <div class="status">
         <span v-if="error" class="error">{{ error }}</span>

@@ -138,6 +138,12 @@ const props = defineProps<{
   securityId: string;
 }>();
 
+const emit = defineEmits<{
+  (e: 'order-submitted', payload: any): void;
+  (e: 'report', env: any): void;
+}>();
+
+
 const activeTab = ref<'order' | 'cancel' | 'reports'>('order');
 
 const orderForm = reactive<OrderRequest>({
@@ -199,14 +205,38 @@ watch(
 );
 
 function genClOrderId(prefix: string): string {
-  const ts = Date.now().toString(36);
-  const rnd = Math.random().toString(36).slice(2, 8);
-  return (prefix + ts + rnd).slice(-16).toUpperCase();
+  // API 标准：clOrderId 为 16 位字符串（建议仅使用大写字母与数字）
+  const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const p = (prefix || 'O').slice(0, 1).toUpperCase();
+  let body = '';
+  for (let i = 0; i < 15; i++) {
+    body += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return (p + body).slice(0, 16);
+}
+
+function isValidShareholderId(v: string): boolean {
+  return (v || '').trim().length === 10;
+}
+
+function isValidSecurityId(v: string): boolean {
+  const s = (v || '').trim();
+  return /^[0-9]{6}$/.test(s);
 }
 
 async function submitOrder() {
-  if (!orderForm.shareholderId || !orderForm.securityId) {
+  const sh = orderForm.shareholderId?.trim();
+  const sec = orderForm.securityId?.trim();
+  if (!sh || !sec) {
     ElMessage.error('股东号与股票代码不能为空（可从顶部面板填写）。');
+    return;
+  }
+  if (!isValidShareholderId(sh)) {
+    ElMessage.error('股东号不合法：必须为 10 位字符串（例如 A000000001）。');
+    return;
+  }
+  if (!isValidSecurityId(sec)) {
+    ElMessage.error('股票代码不合法：必须为 6 位数字（例如 600030）。');
     return;
   }
   if (!orderForm.qty || orderForm.qty <= 0 || !orderForm.price || orderForm.price <= 0) {
@@ -226,6 +256,8 @@ async function submitOrder() {
       return;
     }
     ElMessage.success(`下单已提交，clOrderId = ${res.data.data?.clOrderId || payload.clOrderId}`);
+    emit('order-submitted', payload);
+
     reconnectReports();
   } catch (e: any) {
     ElMessage.error(`下单异常：${e?.message || '网络错误'}`);
@@ -235,8 +267,23 @@ async function submitOrder() {
 }
 
 async function submitCancel() {
-  if (!cancelForm.shareholderId || !cancelForm.securityId || !cancelForm.origClOrderId) {
+  const sh = cancelForm.shareholderId?.trim();
+  const sec = cancelForm.securityId?.trim();
+  const orig = cancelForm.origClOrderId?.trim();
+  if (!sh || !sec || !orig) {
     ElMessage.error('股东号、股票代码与原订单号不能为空。');
+    return;
+  }
+  if (!isValidShareholderId(sh)) {
+    ElMessage.error('股东号不合法：必须为 10 位字符串（例如 A000000001）。');
+    return;
+  }
+  if (!isValidSecurityId(sec)) {
+    ElMessage.error('股票代码不合法：必须为 6 位数字（例如 600030）。');
+    return;
+  }
+  if (orig.length !== 16) {
+    ElMessage.error('原订单号 origClOrderId 不合法：必须为 16 位字符串。');
     return;
   }
 
@@ -265,6 +312,7 @@ function clearReports() {
 }
 
 function pushReport(env: OrderReportEnvelopeTyped<any>) {
+  if (env?.reportType === 'HEARTBEAT') return;
   const now = new Date();
   const timeText = now.toLocaleTimeString('zh-CN', { hour12: false });
 
@@ -349,6 +397,8 @@ function reconnectReports() {
   es.onmessage = (evt) => {
     const env = safeJsonParse<OrderReportEnvelopeTyped<any>>(evt.data);
     if (!env) return;
+    if (env.reportType === 'HEARTBEAT') return;
+    emit('report', env);
     pushReport(env);
   };
 }
