@@ -7,7 +7,7 @@ import com.kimiha.vortexcore.model.domain.Order;
 import java.time.LocalDateTime;
 
 /**
- * 订单查询/列表响应。
+ * 订单查询/列表响应
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record OrderResponse(

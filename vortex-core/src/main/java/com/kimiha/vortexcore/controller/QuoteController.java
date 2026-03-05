@@ -1,8 +1,9 @@
 package com.kimiha.vortexcore.controller;
 
-import com.kimiha.vortexcore.alltick.MarketDataService;
-import com.kimiha.vortexcore.alltick.QuoteSnapshot;
+import com.kimiha.vortexcore.model.QuoteSnapshot;
 import com.kimiha.vortexcore.model.Result;
+import com.kimiha.vortexcore.service.QuotationService;
+
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -15,9 +16,9 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/vclient")
 public class QuoteController {
 
-    private final MarketDataService marketDataService;
+    private final QuotationService marketDataService;
 
-    public QuoteController(MarketDataService marketDataService) {
+    public QuoteController(QuotationService marketDataService) {
         this.marketDataService = marketDataService;
     }
 

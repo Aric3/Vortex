@@ -7,13 +7,12 @@ import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 import com.kimiha.vortexcore.config.AnalyticsProperties;
-import com.kimiha.vortexcore.alltick.AllTickProperties;
-import com.kimiha.vortexcore.alltick.SimulationProperties;
+import com.kimiha.vortexcore.config.QuotationProperties;
 
 @SpringBootApplication
 @EnableAsync
 @EnableScheduling
-@EnableConfigurationProperties({ AnalyticsProperties.class, AllTickProperties.class, SimulationProperties.class })
+@EnableConfigurationProperties({ AnalyticsProperties.class, QuotationProperties.class })
 public class VortexCoreApplication {
 
 	public static void main(String[] args) {
