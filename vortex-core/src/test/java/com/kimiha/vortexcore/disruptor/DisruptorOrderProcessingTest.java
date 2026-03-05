@@ -41,7 +41,7 @@ class DisruptorOrderProcessingTest {
     @Test
     void publishEvent_asyncHandlerProcesses_orderRestsOnBook() throws InterruptedException {
         MatchingEngine matchingEngine = new MatchingEngine();
-        OrderEventHandler handler = new OrderEventHandler(matchingEngine, null, null, null);
+        OrderEventHandler handler = new OrderEventHandler(matchingEngine, null, null, null, null, false, 0.02);
         CountDownLatch latch = new CountDownLatch(1);
 
         int bufferSize = 16;
@@ -76,7 +76,7 @@ class DisruptorOrderProcessingTest {
     @Test
     void publishTwoOppositeOrders_bothProcessed_matchResult() throws InterruptedException {
         MatchingEngine matchingEngine = new MatchingEngine();
-        OrderEventHandler handler = new OrderEventHandler(matchingEngine, null, null, null);
+        OrderEventHandler handler = new OrderEventHandler(matchingEngine, null, null, null, null, false, 0.02);
         CountDownLatch latch = new CountDownLatch(2);
 
         int bufferSize = 16;
@@ -114,7 +114,7 @@ class DisruptorOrderProcessingTest {
     @Test
     void routerWithOneShard_orderProcessed_orderRestsOnBook() throws InterruptedException {
         MatchingEngine matchingEngine = new MatchingEngine();
-        OrderEventHandler handler = new OrderEventHandler(matchingEngine, null, null, null);
+        OrderEventHandler handler = new OrderEventHandler(matchingEngine, null, null, null, null, false, 0.02);
         ShardDisruptorHolder holder = new ShardDisruptorHolder(1, handler);
         OrderEventRouter router = new OrderEventRouter(holder.getShardRingBuffers());
 
@@ -151,7 +151,7 @@ class DisruptorOrderProcessingTest {
     @Test
     void routerWithMultipleShards_differentSymbols_bothOrdersOnBooks() throws InterruptedException {
         MatchingEngine matchingEngine = new MatchingEngine();
-        OrderEventHandler handler = new OrderEventHandler(matchingEngine, null, null, null);
+        OrderEventHandler handler = new OrderEventHandler(matchingEngine, null, null, null, null, false, 0.02);
         ShardDisruptorHolder holder = new ShardDisruptorHolder(4, handler);
         OrderEventRouter router = new OrderEventRouter(holder.getShardRingBuffers());
 

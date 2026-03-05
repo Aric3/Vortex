@@ -176,9 +176,11 @@ public class OrderBook {
                 counterParties.remove(bestPrice);
         }
 
-        // 2. 剩余部分进入挂单；设置 taker 终态
+        // 2. 剩余部分进入挂单；设置 taker 终态（有成交且剩余入簿 -> PartiallyFilled；完全没成交直接入簿 -> 保持 New）
         if (newOrder.getQty() > 0) {
-            OrderStateMachine.transition(newOrder, OrderStatus.PartiallyFilled);
+            if (newOrder.getCumQty() > 0) {
+                OrderStateMachine.transition(newOrder, OrderStatus.PartiallyFilled);
+            }
             TreeMap<Double, LinkedHashMap<String, Order>> mySide = "B".equals(newOrder.getSide()) ? bids : asks;
             mySide.computeIfAbsent(newOrder.getPrice(), k -> new LinkedHashMap<>()).put(newOrder.getClOrderId(), newOrder);
             if (newOrder.getClOrderId() != null) {
