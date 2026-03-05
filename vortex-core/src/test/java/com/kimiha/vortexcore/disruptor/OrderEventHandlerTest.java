@@ -40,7 +40,7 @@ class OrderEventHandlerTest {
     @BeforeEach
     void setUp() {
         matchingEngine = new MatchingEngine();
-        handler = new OrderEventHandler(matchingEngine, null, null, null);
+        handler = new OrderEventHandler(matchingEngine, null, null, null, null, false, 0.02);
     }
 
     @Test

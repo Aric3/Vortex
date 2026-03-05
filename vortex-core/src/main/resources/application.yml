@@ -5,6 +5,8 @@ server:
 vortex:
     matching:
         shards: 8  # 订单事件分片数
+        price-deviation-check-enabled: true   # 是否启用价格偏离校验
+        price-deviation-max: 0.02            # 最大偏离比例，0.02=2%，0.10=10%
 
 spring:
     application:

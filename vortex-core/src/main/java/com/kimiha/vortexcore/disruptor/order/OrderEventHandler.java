@@ -19,11 +19,14 @@ import com.kimiha.vortexcore.model.dto.report.OrderConfirm;
 import com.kimiha.vortexcore.model.dto.report.OrderExecution;
 import com.kimiha.vortexcore.model.dto.report.OrderReject;
 import com.kimiha.vortexcore.model.dto.report.OrderReportEnvelope;
+import com.kimiha.vortexcore.model.TickSnapshot;
 import com.kimiha.vortexcore.service.OrderReportStreamService;
+import com.kimiha.vortexcore.service.QuotationService;
 import com.kimiha.vortexcore.service.tools.ExecIdGenerator;
 import com.lmax.disruptor.EventHandler;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
@@ -35,19 +38,29 @@ public class OrderEventHandler implements EventHandler<OrderEvent> {
     private static final String REJECT_TEXT_WASH_TRADE = "Wash trade rejected";
     private static final String REJECT_TEXT_DUPLICATE_CL_ORDER_ID = "Duplicate clOrderId";
     private static final String REJECT_TEXT_CANCEL_ORDER_NOT_FOUND = "Order not found or already filled/canceled";
+    private static final String REJECT_TEXT_PRICE_DEVIATION = "Order price deviates too much from the latest market price.";
 
     private final MatchingEngine matchingEngine;
     private final ApplicationEventPublisher eventPublisher;
     private final OrderReportStreamService reportStreamService;
     private final PersistenceEventProducer persistenceEventProducer;
+    private final QuotationService quotationService;
+    private final boolean priceDeviationCheckEnabled;
+    private final double priceDeviationMax;
 
     public OrderEventHandler(MatchingEngine matchingEngine, ApplicationEventPublisher eventPublisher,
                              OrderReportStreamService reportStreamService,
-                             @Autowired(required = false) PersistenceEventProducer persistenceEventProducer) {
+                             @Autowired(required = false) PersistenceEventProducer persistenceEventProducer,
+                             @Autowired(required = false) QuotationService quotationService,
+                             @Value("${vortex.matching.price-deviation-check-enabled:false}") boolean priceDeviationCheckEnabled,
+                             @Value("${vortex.matching.price-deviation-max:0.02}") double priceDeviationMax) {
         this.matchingEngine = matchingEngine;
         this.eventPublisher = eventPublisher;
         this.reportStreamService = reportStreamService;
         this.persistenceEventProducer = persistenceEventProducer;
+        this.quotationService = quotationService;
+        this.priceDeviationCheckEnabled = priceDeviationCheckEnabled;
+        this.priceDeviationMax = priceDeviationMax;
     }
 
     @Override
@@ -59,7 +72,7 @@ public class OrderEventHandler implements EventHandler<OrderEvent> {
         Order order = event.getOrder();
         String securityId = order.getSecurityId();
         OrderBook book = matchingEngine.getOrderBook(securityId);
-
+        /*  重复单检测  */
         if (book.illegalClOrderId(order)) {
             OrderReject reject = new OrderReject(
                     order.getClOrderId(), order.getMarket(), securityId, order.getSide(),
@@ -74,7 +87,30 @@ public class OrderEventHandler implements EventHandler<OrderEvent> {
             }
             return;
         }
+         /** 价格偏离检测  */
+         if (priceDeviationCheckEnabled && quotationService != null) {
+            TickSnapshot tick = quotationService.getTick(securityId, order.getMarket());
+            if (tick != null && tick.getLastPrice() > 0 && order.getPrice() != null) {
+                double lastPrice = tick.getLastPrice();
+                double deviation = Math.abs(order.getPrice() - lastPrice) / lastPrice;
+                if (deviation > priceDeviationMax) {
+                    OrderReject reject = new OrderReject(
+                            order.getClOrderId(), order.getMarket(), securityId, order.getSide(),
+                            order.getQty(), order.getPrice(), order.getShareholderId(),
+                            ResultCode.PRICE_DEVIATION_REJECT.getCode(), REJECT_TEXT_PRICE_DEVIATION);
+                    if (reportStreamService != null) {
+                        reportStreamService.pushReport(order.getShareholderId(),
+                                new OrderReportEnvelope(OrderReject.REPORT_TYPE, reject));
+                    }
+                    if (persistenceEventProducer != null) {
+                        persistenceEventProducer.publish(PersistenceEventType.ORDER_REJECT, reject);
+                    }
+                    return;
+                }
+            }
+        }
 
+        /**  对敲检测  */
         if (book.isWashTrading(order)) {
             OrderReject reject = new OrderReject(
                     order.getClOrderId(), order.getMarket(), securityId, order.getSide(),
@@ -89,6 +125,7 @@ public class OrderEventHandler implements EventHandler<OrderEvent> {
             }
             return;
         }
+       
 
         // 状态机：入簿前设定 orderQty、cumQty、status
         order.setOrderQty(order.getQty());
