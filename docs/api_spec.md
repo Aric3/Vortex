@@ -268,13 +268,14 @@
     "totalOrders": 12181,
     "washRatio": 0.062967,
     "latencyBuckets": [
-      { "bucket": "0-1ms", "count": 1567 },
-      { "bucket": "2-5ms", "count": 459 },
-      { "bucket": "6-10ms", "count": 95 },
-      { "bucket": "11-50ms", "count": 753 },
-      { "bucket": "51-100ms", "count": 55 },
-      { "bucket": "101-500ms", "count": 448 },
-      { "bucket": ">500ms", "count": 1955 }
+      { "bucket": "0-1s", "count": 1567 },
+      { "bucket": "1-5s", "count": 459 },
+      { "bucket": "5-10s", "count": 95 },
+      { "bucket": "10-30s", "count": 753 },
+      { "bucket": "30-60s", "count": 55 },
+      { "bucket": "1-5min", "count": 448 },
+      { "bucket": "5-15min", "count": 120 },
+      { "bucket": ">15min", "count": 1835 }
     ],
     "timestamp": 1772159000123
   },
@@ -288,6 +289,6 @@
 - `data.totalOrders`：订单总量（`orders` 通过订单 + `order_rejects` 拒绝订单，用于口径分母）。
 - `data.washRatio`：对敲占比（`washRejects / totalOrders`）。
 - `data.latencyBuckets`：成交延时分桶统计（按订单首笔成交时间计算，每个订单只计一次）。
-- `data.latencyBuckets[].bucket`：延时区间（毫秒）。
+- `data.latencyBuckets[].bucket`：延时区间（秒/分钟）。
 - `data.latencyBuckets[].count`：该区间内订单数量。
 - `data.timestamp`：指标快照更新时间（Unix 毫秒时间戳）。
