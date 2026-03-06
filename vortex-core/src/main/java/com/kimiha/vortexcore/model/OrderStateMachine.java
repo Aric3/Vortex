@@ -2,10 +2,8 @@ package com.kimiha.vortexcore.model;
 
 import com.kimiha.vortexcore.model.domain.Order;
 
-import java.time.LocalDateTime;
-
 /**
- * 轻量订单状态机：校验合法流转并执行 transition（设置 status/updatedTime）
+ * 轻量订单状态机：校验合法流转并执行 transition（设置 status/updatedTimeEpochMs）
  */
 public final class OrderStateMachine {
 
@@ -22,12 +20,12 @@ public final class OrderStateMachine {
     }
 
     /**
-     * 将订单转到目标状态并更新 updatedTime；不校验（用于引擎内部已确定合法的场景）
+     * 将订单转到目标状态并更新 updatedTimeEpochMs；不校验（用于引擎内部已确定合法的场景）
      */
     public static void transition(Order order, OrderStatus to) {
         if (order == null || to == null) return;
         order.setStatus(to);
-        order.setUpdatedTime(LocalDateTime.now());
+        order.setUpdatedTimeEpochMs(System.currentTimeMillis());
     }
 
     /**

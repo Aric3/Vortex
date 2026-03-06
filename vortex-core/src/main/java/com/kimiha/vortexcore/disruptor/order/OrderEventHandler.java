@@ -29,7 +29,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
 @Component
@@ -131,7 +130,7 @@ public class OrderEventHandler implements EventHandler<OrderEvent> {
         order.setOrderQty(order.getQty());
         order.setCumQty(0);
         order.setStatus(OrderStatus.New);
-        order.setUpdatedTime(LocalDateTime.now());
+        order.setUpdatedTimeEpochMs(System.currentTimeMillis());
 
         if (reportStreamService != null) {
             OrderConfirm confirm = new OrderConfirm(
@@ -149,7 +148,7 @@ public class OrderEventHandler implements EventHandler<OrderEvent> {
         List<TradeResult> tradeResults = matchResult.tradeResults();
 
         if (!tradeResults.isEmpty()) {
-            LocalDateTime tradeTime = LocalDateTime.now();
+            long tradeTimeEpochMs = System.currentTimeMillis();
             for (TradeResult tr : tradeResults) {
                 String execId = ExecIdGenerator.next();
                 if (reportStreamService != null) {
@@ -169,7 +168,7 @@ public class OrderEventHandler implements EventHandler<OrderEvent> {
                             new OrderReportEnvelope(OrderExecution.REPORT_TYPE, makerReport));
                 }
                 if (persistenceEventProducer != null) {
-                    TradePersistencePayload payload = new TradePersistencePayload(execId, tradeTime, order.getMarket(), tr,
+                    TradePersistencePayload payload = new TradePersistencePayload(execId, tradeTimeEpochMs, order.getMarket(), tr,
                             order.getSide(), order.getShareholderId());
                     persistenceEventProducer.publish(PersistenceEventType.TRADE, payload);
                 }

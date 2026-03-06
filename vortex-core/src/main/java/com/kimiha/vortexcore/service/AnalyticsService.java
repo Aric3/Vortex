@@ -100,26 +100,26 @@ public class AnalyticsService {
     }
 
     private List<LatencyBucket> queryLatencyBuckets() {
-        // 延时定义：首笔成交时间 - 下单时间（毫秒）。
-        // 当前统计基于 orders + trades 表。
+        // 延时定义：首笔成交时间 - 下单时间（毫秒）；仅用 epoch ms 列。
         String sql = """
                 WITH order_trade AS (
-                  SELECT taker_cl_order_id AS cl_order_id, trade_time FROM trades
+                  SELECT taker_cl_order_id AS cl_order_id, trade_time_epoch_ms FROM trades
                   UNION ALL
-                  SELECT maker_cl_order_id AS cl_order_id, trade_time FROM trades
+                  SELECT maker_cl_order_id AS cl_order_id, trade_time_epoch_ms FROM trades
                 ),
                 first_trade AS (
-                  SELECT cl_order_id, MIN(trade_time) AS first_trade_time
+                  SELECT cl_order_id, MIN(trade_time_epoch_ms) AS first_trade_time_epoch_ms
                   FROM order_trade
-                  WHERE cl_order_id IS NOT NULL AND cl_order_id <> ''
+                  WHERE cl_order_id IS NOT NULL AND cl_order_id <> '' AND trade_time_epoch_ms IS NOT NULL
                   GROUP BY cl_order_id
                 ),
                 latency AS (
                   SELECT
                     o.cl_order_id,
-                    CAST(ft.first_trade_time AS INTEGER) - CAST(o.create_time AS INTEGER) AS latency_ms
+                    (ft.first_trade_time_epoch_ms - o.create_time_epoch_ms) AS latency_ms
                   FROM orders o
                   JOIN first_trade ft ON o.cl_order_id = ft.cl_order_id
+                  WHERE o.create_time_epoch_ms IS NOT NULL
                 )
                 SELECT
                   CASE

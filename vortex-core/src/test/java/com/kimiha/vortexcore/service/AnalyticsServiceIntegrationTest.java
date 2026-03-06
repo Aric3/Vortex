@@ -49,14 +49,14 @@ class AnalyticsServiceIntegrationTest {
                 "ATEST_ORDER_000004", 1300L
         );
 
-        // 2 笔成交：首笔延时分别为 5ms、80ms
+        // 2 笔成交：首笔延时分别为 5ms、80ms（trade_time_epoch_ms - create_time_epoch_ms）
         jdbcTemplate.update(
-                "INSERT INTO trades (exec_id, security_id, market, price, qty, trade_time, taker_cl_order_id, maker_cl_order_id, taker_side, maker_side, taker_shareholder_id, maker_shareholder_id) " +
+                "INSERT INTO trades (exec_id, security_id, market, price, qty, trade_time_epoch_ms, taker_cl_order_id, maker_cl_order_id, taker_side, maker_side, taker_shareholder_id, maker_shareholder_id) " +
                         "VALUES (?, '600030', 'XSHG', 10.0, 100, ?, ?, ?, 'B', 'S', 'SHARE00001', 'SHARE00002')",
                 "ATEST_EXEC_0001", 1005L, "ATEST_ORDER_000001", "ATEST_ORDER_000099"
         );
         jdbcTemplate.update(
-                "INSERT INTO trades (exec_id, security_id, market, price, qty, trade_time, taker_cl_order_id, maker_cl_order_id, taker_side, maker_side, taker_shareholder_id, maker_shareholder_id) " +
+                "INSERT INTO trades (exec_id, security_id, market, price, qty, trade_time_epoch_ms, taker_cl_order_id, maker_cl_order_id, taker_side, maker_side, taker_shareholder_id, maker_shareholder_id) " +
                         "VALUES (?, '600030', 'XSHG', 10.0, 100, ?, ?, ?, 'S', 'B', 'SHARE00003', 'SHARE00004')",
                 "ATEST_EXEC_0002", 1180L, "ATEST_ORDER_000002", "ATEST_ORDER_000098"
         );
@@ -80,11 +80,11 @@ class AnalyticsServiceIntegrationTest {
         assertEquals(1L, bucketCount.getOrDefault("51-100ms", 0L));
     }
 
-    private void insertOrder(String clOrderId, long createTimeMs) {
+    private void insertOrder(String clOrderId, long createTimeEpochMs) {
         jdbcTemplate.update(
-                "INSERT INTO orders (cl_order_id, market, security_id, side, qty, price, shareholder_id, create_time) " +
-                        "VALUES (?, 'XSHG', '600030', 'B', 100, 10.0, 'SHARE00001', ?)",
-                clOrderId, createTimeMs
+                "INSERT INTO orders (cl_order_id, market, security_id, side, qty, price, shareholder_id, create_time_epoch_ms, updated_time_epoch_ms) " +
+                        "VALUES (?, 'XSHG', '600030', 'B', 100, 10.0, 'SHARE00001', ?, ?)",
+                clOrderId, createTimeEpochMs, createTimeEpochMs
         );
     }
 
@@ -99,7 +99,11 @@ class AnalyticsServiceIntegrationTest {
                     qty INTEGER,
                     price REAL,
                     shareholder_id TEXT,
-                    create_time INTEGER
+                    order_qty INTEGER,
+                    cum_qty INTEGER,
+                    status TEXT,
+                    create_time_epoch_ms INTEGER,
+                    updated_time_epoch_ms INTEGER
                 )
                 """);
 
@@ -127,7 +131,7 @@ class AnalyticsServiceIntegrationTest {
                     market TEXT,
                     price REAL,
                     qty INTEGER,
-                    trade_time INTEGER,
+                    trade_time_epoch_ms INTEGER,
                     taker_cl_order_id TEXT,
                     maker_cl_order_id TEXT,
                     taker_side TEXT,
