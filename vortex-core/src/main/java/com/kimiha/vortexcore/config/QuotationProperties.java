@@ -66,6 +66,10 @@ public class QuotationProperties {
         @Setter(AccessLevel.NONE)
         private Map<String, Double> initialPrice = Map.of();
         private double defaultInitialPrice = 10.0;
+        /**
+         * 订阅类型：tick=仅生成最新成交价，both=两者都生成（模拟时 handicap 依赖 tick，故不单独支持仅买卖五档）
+         */
+        private String subscriptionMode = "both";
 
         public void setInitialPrice(Map<String, Double> initialPrice) {
             this.initialPrice = initialPrice != null ? initialPrice : Map.of();

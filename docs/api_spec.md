@@ -120,6 +120,16 @@
     "timestamp": 1772023126873
     }
    ```
+
+### 1.5 行情查询与推送
+- 请求方式：GET（单次查询）
+- 接口路径：/api/v1/vclient/quote/tick/{securityId} — 最新成交价（逐笔）
+- 接口路径：/api/v1/vclient/quote/handicap/{securityId} — 买卖五档（盘口）
+
+- 请求方式：GET（SSE 推送，两个接口）
+- 接口路径：/api/v1/vclient/quote/stream/tick/{securityId} — 持续推送最新成交价（tick），供前端参考价。每条事件 JSON：`{ "code", "lastPrice", "volume", "tickTimeMs" }`，无数据时为 null。
+- 接口路径：/api/v1/vclient/quote/stream/handicap/{securityId} — 持续推送买卖五档（handicap），供前端盘口。每条事件 JSON：`{ "code", "bids", "asks", "tickTimeMs" }`，无数据时为 null。响应均为 `Content-Type: text/event-stream`。
+
 ---
 
 ## 2. 异步回报类型

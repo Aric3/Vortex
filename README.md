@@ -1,194 +1,193 @@
-# 🌀 Vortex - 高性能交易风控撮合系统
-Kimiha (基米哈) 小组作品
+# Vortex
 
-## 环境依赖 (Environment)
+[![Java](https://img.shields.io/badge/Java-21-ED8B00?logo=openjdk)](https://openjdk.org/)
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.0.2-6DB33F?logo=springboot)](https://spring.io/projects/spring-boot)
+[![Vue](https://img.shields.io/badge/Vue-3.5-4FC08D?logo=vue.js)](https://vuejs.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-### 后端 (vortex-core)
-JDK: 21 (必须，开启虚拟线程支持)
+**高性能交易风控与撮合系统** — 订单簿撮合、对敲风控、行情接入与实时推送，配套 Web 管理看板。  
+Kimiha（基米哈）小组作品。
 
-Maven: 3.9.9
+---
 
-Database: SQLite 3
+## 目录
 
+- [功能特性](#功能特性)
+- [技术架构](#技术架构)
+- [项目结构](#项目结构)
+- [环境要求](#环境要求)
+- [快速开始](#快速开始)
+- [配置说明](#配置说明)
+- [API 概览](#api-概览)
+- [前端使用](#前端使用)
+- [文档与测试](#文档与测试)
+- [许可证](#许可证)
 
-### 前端 (vortex-ui)
-Node.js: 22.15.0 (LTS)
+---
 
-Package Manager: npm 10.9.2
+## 功能特性
 
-Framework: Vue 3.5 + Vite 5
+- **订单撮合**：按标的（securityId）维护订单簿，价格时间优先撮合，支持市价触及的限价单成交
+- **对敲风控**：同一股东在买卖两侧可成交时拒绝订单（防洗钱/对敲），可配置价格偏离校验
+- **行情接入**：支持 AllTick 真实行情（WebSocket + HTTP 快照）与内置模拟行情（可配置走势模式）
+- **实时推送**：SSE 推送订单回报、订单簿快照、行情 tick/盘口，前端可实时展示
+- **持久化**：基于 Disruptor 的异步持久化，订单/成交/撤单等事件落库（SQLite）
+- **分析指标**：对敲拒绝数、订单量、成交延时分桶等，通过 REST 与前端看板展示
 
-### 模拟器 (vortex-simulators)
+---
 
-Python: 3.12
+## 技术架构
 
-Locust: 用于压力测试
+| 层级 | 技术 |
+|------|------|
+| 后端 | Java 21、Spring Boot 4、虚拟线程、WebFlux（SSE）、Disruptor、Caffeine、JPA + SQLite |
+| 前端 | Vue 3、Vite 7、TypeScript、Element Plus、ECharts、Axios、EventSource（SSE） |
+| 行情 | AllTick WebSocket/HTTP、模拟引擎（flat / random_walk / mean_reversion / trend） |
+| 撮合 | 按标的分片订单簿、价格时间优先、股东维度对敲检测 |
+
+---
 
 ## 项目结构
-vortex-core/: Java 后端核心逻辑
 
-vortex-ui/: Vue 3 前端管理后台
+```
+Vortex/
+├── vortex-core/          # 后端：撮合、风控、行情、SSE、持久化
+├── vortex-ui/            # 前端：Vue 3 交易看板（订单簿、成交分布、下单/撤单、风控指标）
+├── vortex-simulators/    # Python 模拟器：下单脚本、压力测试（Locust）
+├── docs/                 # API 规范（api_spec.md）与设计文档
+├── LICENSE
+└── README.md
+```
 
-vortex-simulators/: Python 下单模拟与行情脚本
+---
 
-docs/: API 接口文档与设计方案
+## 环境要求
 
-### 开发协作规范 (Workflow)
-见飞书知识库规范文档。
+| 组件 | 要求 |
+|------|------|
+| 后端 (vortex-core) | JDK **21**（需虚拟线程）、Maven 3.9+、SQLite 3 |
+| 前端 (vortex-ui) | Node.js 22 LTS、npm 10+ |
+| 模拟器 (vortex-simulators) | Python 3.12、Locust（压测） |
 
-### 快速启动
-克隆项目：git clone git@github.com:Aric3/Vortex.git
+---
 
-启动后端：进入 vortex-core 执行 mvn spring-boot:run
+## 快速开始
 
-启动前端：进入 vortex-ui 执行 npm install && npm run dev
+**1. 克隆仓库**
 
-## 前端使用指南（vortex-ui）
+```bash
+git clone git@github.com:Aric3/Vortex.git
+cd Vortex
+```
 
-### 1. 技术栈
+**2. 启动后端**
 
-- **框架**：Vue 3 + Vite 7
-- **UI 组件库**：Element Plus
-- **图表**：Apache ECharts
-- **通信**：
-  - REST：`axios` 访问 `/api/v1/vclient/*` 与 `/api/v1/analytics/*`
-  - 实时：浏览器原生 SSE（`EventSource`）订阅订单簿与订单回报流
+```bash
+cd vortex-core
+mvn spring-boot:run
+```
 
-开发环境下通过 `vite.config.ts` 代理 `/api` 到 `http://localhost:8080`，因此前端统一访问 `/api/...`，后端监听在 8080 端口即可。
+默认监听 `http://localhost:8080`。
 
-### 2. 启动顺序
+**3. 启动前端**
 
-1. **启动后端**
-   - 在 `vortex-core` 目录执行：
-     - `mvn spring-boot:run`
-   - 确认后端启动在 `http://localhost:8080`，并暴露以下接口（详见 `docs/api_spec.md`）：
-     - `/api/v1/vclient/orders`
-     - `/api/v1/vclient/orders/cancel`
-     - `/api/v1/vclient/stream/reports`
-     - `/api/v1/vclient/orderbook/{securityId}/stream`
-     - `/api/v1/analytics/metrics`
+```bash
+cd vortex-ui
+npm install
+npm run dev
+```
 
-2. **启动前端**
-   - 在 `vortex-ui` 目录执行：
-     - 首次：`npm install`
-     - 之后：`npm run dev`
-   - 浏览器访问 Vite 提示的地址（默认为 `http://localhost:5173`）。
+浏览器访问 Vite 提示的地址（默认 `http://localhost:5173`）。  
+前端通过代理将 `/api` 转发到后端 8080，无需改端口。
 
-### 3. 页面布局与模块说明
+**4. 验证**
 
-访问前端后，会进入单页面的**交易看板**，自上而下分为四块：
+- 打开交易看板，设置股东号（如 `A001`）、股票代码（如 `600030`）
+- 若使用模拟行情（`quotation.source: simulated_only`），无需外网即可看到行情与订单簿
+- 提交订单后，在回报流与订单簿图中观察确认/成交/撤单
 
-1. **顶部过滤面板**
-   - **股东号 `shareholderId`**：用于
-     - 订阅订单回报流 SSE（成交分布图 + 回报流面板）
-     - 下单/撤单时自动带入股东号
-   - **股票代码 `securityId`**：用于
-     - 订阅订单簿 SSE（买卖盘图）
-     - 过滤成交分布图与订单回报
-   - **深度 `depth`**：订单簿展示的 `TopN` 档位。
+---
 
-2. **实时订单簿对比图（左上）**
-   - 组件：`OrderBookCompareChart`
-   - 功能：
-     - 通过 SSE 订阅 `/api/v1/vclient/orderbook/{securityId}/stream?depth=...`
-     - 将买一、卖一等多档数据绘制为**双向条形图**：
-       - 上半部分：卖盘（`asks`）
-       - 下半部分：买盘（`bids`，数量取负数左右对比）
-   - 使用方式：
-     - 在顶部输入股票代码与深度
-     - 确认后端已启动，即可看到买卖盘随行情实时变化。
+## 配置说明
 
-3. **当前用户成交分布图（右上）**
-   - 组件：`TradeDistributionChart`
-   - 功能：
-     - 通过 SSE 订阅 `/api/v1/vclient/stream/reports?shareholderId=...`
-     - 只处理 `ORDER_EXECUTION` 类型回报，将成交按照**价格桶**聚合：
-       - 可选择分桶步长 `0.01 / 0.05 / 0.10`
-       - 可设置保留的成交条数上限（例如 500 条）
-   - 使用方式：
-     - 在顶部输入股东号与股票代码
-     - 撮合产生成交后，可看到该股东在不同价格上的成交量柱状图。
+### 行情来源（application.yml）
 
-4. **下单 / 撤单控制台 + 风控指标（下方两列）**
-   - **左侧：下单与撤单控制台 `TradingConsole`**
-     - 支持三块功能：
-       1. **下单表单**
-          - 字段：
-            - 市场 `market`：`XSHG` / `XSHE` / `BJSE`
-            - 买卖方向 `side`：买 `B` / 卖 `S`
-            - 股东号 `shareholderId`：默认从顶部面板带入，可手工修改
-            - 股票代码 `securityId`
-            - 数量 `qty`
-            - 价格 `price`
-          - 行为：
-            - 点击“提交订单”后，通过 POST `/api/v1/vclient/orders` 下单
-            - `clOrderId` 由前端按时间戳+随机数自动生成 16 位字符串
-            - 基础参数校验不通过时，会直接在前端弹出错误提示
-            - 后端接收成功后，通过 Element Plus `Message` 提示“下单已提交”
-       2. **撤单表单**
-          - 字段：
-            - 市场 `market`
-            - 股东号 `shareholderId`
-            - 股票代码 `securityId`
-            - 买卖方向 `side`
-            - **原订单号 `origClOrderId`**：待撤订单对应的 `clOrderId`
-          - 行为：
-            - 点击“提交撤单”后，通过 POST `/api/v1/vclient/orders/cancel` 发送撤单请求
-            - 撤单请求本身是否受理，会以标准 `Result` 返回；最终是否撤单成功，通过 SSE 回报流体现。
-       3. **订单回报流面板**
-          - 内部使用 SSE 连接 `/api/v1/vclient/stream/reports?shareholderId=...`
-          - 将以下类型的回报以时间轴形式滚动展示：
-            - 订单确认 `ORDER_CONFIRM`
-            - 订单拒绝 `ORDER_REJECT`
-            - 订单成交 `ORDER_EXECUTION`
-            - 撤单确认 `CANCEL_CONFIRM`
-            - 撤单拒绝 `CANCEL_REJECT`
-          - 提供“清空”按钮快速清理历史回报，仅影响前端展示，不影响后端状态。
-   - **右侧：风控与性能指标面板 `AnalyticsPanel`**
-     - 周期性（默认每 2 秒）通过 GET `/api/v1/analytics/metrics` 拉取最新指标：
-       - `washRejects`：对敲拒绝订单数
-       - `totalOrders`：订单总量（含成功、拒绝）
-       - `washRatio`：对敲占比
-       - `latencyBuckets`：成交延时分桶统计
-     - 页面上方以卡片形式展示：
-       - 总订单数
-       - 对敲拒绝数
-       - 对敲占比（百分比格式）
-     - 下方通过 ECharts 绘制延时分布柱状图，横轴为延时区间，纵轴为订单数量。
+- **quotation.source**  
+  - `real_only`：仅 AllTick 真实行情  
+  - `simulated_only`：仅模拟行情  
+  - `real_then_simulated`：先真实，断线或未订阅时由模拟推进  
 
-### 4. 推荐操作流程（人工联调）
+### 模拟行情走势（quotation.simulation）
 
-1. 启动后端 `vortex-core`。
-2. 启动前端 `vortex-ui`。
-3. 在看板顶部设置：
-   - 股东号：如 `A001`
-   - 股票代码：如 `600030`
-   - 深度：如 `10`
-4. 在“下单与撤单控制台”中：
-   - 选择合适的市场、买卖方向、数量、价格
-   - 提交订单
-5. 观察：
-   - 订单簿对比图是否根据新订单变化（如买一/卖一档数量变化）
-   - 成交产生后，右上角“成交分布图”是否更新柱状图
-   - 下方订单回报流时间轴是否出现：
-     - 订单确认 / 拒绝
-     - 成交回报
-     - 撤单确认 / 拒绝
-   - 右下角“风控与性能指标”中：
-     - 总订单数是否增加
-     - 对敲拒绝数与占比是否按预期变化
-     - 成交延时分布是否更新对应桶的数值
+- **trend**：`flat`（横盘）| `random_walk`（随机游走）| `mean_reversion`（均值回归）| `trend_up` | `trend_down`
+- **volatility**：每步波动幅度，如 `0.01` 约 ±1%，股票常用 `0.005`～`0.02`
+- **subscription-mode**：`tick`（仅最新价）| `both`（最新价 + 买卖五档）
+- **initial-price**：各标的初始价；未配置的用 **default-initial-price**
 
-### 5. 新增 / 修改内容一览（本次前端补全）
+详见 `vortex-core/src/main/resources/application.yml` 内注释。
 
-> 方便组内成员代码评审，以下为本次自动生成或改动的前端文件：
+### 风控与撮合（vortex.matching）
 
-- **新建文件**
-  - `vortex-ui/src/services/http.ts`：统一封装 `axios` 实例与通用 `ApiResult` 类型。
-  - `vortex-ui/src/components/TradingConsole.vue`：下单 / 撤单控制台 + 订单回报流时间轴。
-  - `vortex-ui/src/components/AnalyticsPanel.vue`：拉取并展示 `/api/v1/analytics/metrics` 的风控与性能指标。
-- **修改文件**
-  - `vortex-ui/src/main.ts`：挂载 Element Plus，全局引入其样式。
-  - `vortex-ui/src/style.css`：重置全局布局为浅色后台风格，去除默认居中卡片样式。
-  - `vortex-ui/src/types/vortex.ts`：补充订单请求、撤单请求、订单回报类型与分析指标类型定义。
-  - `vortex-ui/src/views/Dashboard.vue`：在原有订单簿和成交分布图基础上，集成 `TradingConsole` 与 `AnalyticsPanel` 两个新模块。
+- **price-deviation-check-enabled**：是否启用价格偏离校验（相对行情参考价）
+- **price-deviation-max**：最大允许偏离比例，如 `0.02` 表示 2%
+
+---
+
+## API 概览
+
+基础路径：`/api/v1/vclient`（客户端）、`/api/v1/analytics`（分析）。
+
+| 类型 | 路径 | 说明 |
+|------|------|------|
+| POST | `/orders` | 下单 |
+| POST | `/orders/cancel` | 撤单 |
+| GET | `/orders`, `/orders/{clOrderId}` | 订单查询 |
+| GET | `/orderbook/{securityId}?depth=10` | 订单簿快照 |
+| GET | `/orderbook/{securityId}/stream?depth=10` | 订单簿 SSE |
+| GET | `/quote/tick/{securityId}` | 最新成交价 |
+| GET | `/quote/handicap/{securityId}` | 买卖五档 |
+| GET | `/quote/stream/tick/{securityId}` | 行情 tick SSE |
+| GET | `/quote/stream/handicap/{securityId}` | 行情盘口 SSE |
+| GET | `/stream/reports?shareholderId=xxx` | 订单回报 SSE |
+| GET | `/api/v1/analytics/metrics` | 风控与延时指标 |
+
+完整请求/响应格式见 [docs/api_spec.md](docs/api_spec.md)。
+
+---
+
+## 前端使用
+
+### 技术栈
+
+- **框架**：Vue 3 + Vite 7 + TypeScript  
+- **UI**：Element Plus  
+- **图表**：Apache ECharts  
+- **通信**：REST（axios）+ SSE（EventSource）订阅订单簿、订单回报、行情
+
+### 看板布局（自上而下）
+
+1. **顶部过滤**：股东号、股票代码、订单簿深度 — 用于 SSE 订阅与下单默认值  
+2. **订单簿对比图**：SSE 订阅 `orderbook/{securityId}/stream`，买卖盘双向条形图  
+3. **成交分布图**：SSE 订阅 `stream/reports`，按价格桶聚合该股东成交  
+4. **下单/撤单控制台**：提交订单、撤单，并展示该股东的回报流（确认/拒绝/成交/撤单确认）  
+5. **风控与性能指标**：轮询 `analytics/metrics`，对敲拒绝数、占比、延时分桶
+
+### 推荐联调流程
+
+1. 启动后端 → 启动前端  
+2. 设置股东号、股票代码、深度  
+3. 下单/撤单，观察订单簿图、成交分布图、回报流与风控指标是否更新  
+
+---
+
+## 文档与测试
+
+- **API 规范**：[docs/api_spec.md](docs/api_spec.md)  
+- **开发协作**：见团队知识库（如飞书）规范  
+- **模拟器与压测**：见 [vortex-simulators/README.md](vortex-simulators/README.md)
+
+---
+
+## 许可证
+
+[MIT License](LICENSE) — Copyright (c) 2026 Aric Chen
