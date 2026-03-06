@@ -12,23 +12,39 @@ import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Sinks;
+
+import java.time.Duration;
 
 @Service
 public class AnalyticsService {
     private static final Logger log = LoggerFactory.getLogger(AnalyticsService.class);
+    private static final Duration HEARTBEAT_INTERVAL = Duration.ofSeconds(30);
 
     private final AnalyticsProperties properties;
     private final JdbcTemplate jdbcTemplate;
     private final AtomicReference<AnalyticsMetrics> cache;
+    private final Sinks.Many<AnalyticsMetrics> metricSink;
 
     public AnalyticsService(AnalyticsProperties properties, JdbcTemplate jdbcTemplate) {
         this.properties = properties;
         this.jdbcTemplate = jdbcTemplate;
         this.cache = new AtomicReference<>(new AnalyticsMetrics(0, 0, null, List.of(), 0));
+        this.metricSink = Sinks.many().multicast().onBackpressureBuffer();
     }
 
     public AnalyticsMetrics getMetrics() {
         return cache.get();
+    }
+
+    public Flux<AnalyticsMetrics> streamMetrics() {
+        Flux<AnalyticsMetrics> updates = metricSink.asFlux();
+        Flux<AnalyticsMetrics> heartbeat = Flux.interval(HEARTBEAT_INTERVAL).map(tick -> cache.get());
+        return Flux.concat(
+                Flux.defer(() -> Flux.just(cache.get())),
+                Flux.merge(updates, heartbeat)
+        );
     }
 
     @Scheduled(fixedDelayString = "${analytics.refresh-interval-ms:1000}")
@@ -40,13 +56,15 @@ public class AnalyticsService {
         try {
             WashMetrics wash = queryWashMetrics();
             List<LatencyBucket> buckets = queryLatencyBuckets();
-            cache.set(new AnalyticsMetrics(
+            AnalyticsMetrics metrics = new AnalyticsMetrics(
                     wash.washRejects,
                     wash.totalOrders,
                     wash.washRatio,
                     buckets,
                     System.currentTimeMillis()
-            ));
+            );
+            cache.set(metrics);
+            metricSink.tryEmitNext(metrics);
         } catch (Exception e) {
             log.warn("Analytics refresh failed", e);
         }

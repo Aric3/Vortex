@@ -59,9 +59,10 @@ public class OrderService {
         if (order.getSide() == null || order.getSide().length() != 1 || !(order.getSide().equals("B") || order.getSide().equals("S"))) {
             return ValidationResult.fail("side invalid");
         }
-        if (order.getQty() < 0) {
+        if (order.getQty() <= 0) {
             return ValidationResult.fail("qty invalid");
         }
+
         if (order.getPrice() == null || order.getPrice() <= 0) {
             return ValidationResult.fail("price invalid");
         }
