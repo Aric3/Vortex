@@ -94,7 +94,7 @@
     ],
     "asks": [],
     "timestamp": 1772023126873
-    }
+   }
    ```
 
 - 请求方式：GET（SSE推送）
@@ -129,6 +129,48 @@
 - 请求方式：GET（SSE 推送，两个接口）
 - 接口路径：/api/v1/vclient/quote/stream/tick/{securityId} — 持续推送最新成交价（tick），供前端参考价。每条事件 JSON：`{ "code", "lastPrice", "volume", "tickTimeMs" }`，无数据时为 null。
 - 接口路径：/api/v1/vclient/quote/stream/handicap/{securityId} — 持续推送买卖五档（handicap），供前端盘口。每条事件 JSON：`{ "code", "bids", "asks", "tickTimeMs" }`，无数据时为 null。响应均为 `Content-Type: text/event-stream`。
+
+### 1.6 按股东号查询历史订单
+- 请求方式：GET
+- 接口路径：`/api/v1/vclient/orders/history?shareholderId=&page=&size=`
+- 查询参数：
+  - `shareholderId`（必填，10位股东号）
+  - `page`（可选，默认 `0`，从 `0` 开始）
+  - `size`（可选，默认 `20`，取值 `1~200`）
+- 说明：按创建时间倒序分页返回该股东的历史订单（最新在前）。
+- 响应示例：
+```json
+{
+  "success": true,
+  "code": 0,
+  "message": "Order history retrieved successfully",
+  "data": {
+    "content": [
+      {
+        "id": 101,
+        "clOrderId": "d4fbb7ca6e2341fc",
+        "market": "XSHG",
+        "securityId": "600030",
+        "side": "B",
+        "qty": 1000,
+        "price": 25.8,
+        "shareholderId": "A000000001",
+        "orderQty": 1000,
+        "cumQty": 600,
+        "status": "PartiallyFilled",
+        "createTime": "2026-03-06T10:00:00",
+        "updatedTime": "2026-03-06T10:00:01"
+      }
+    ],
+    "page": 0,
+    "size": 20,
+    "totalElements": 125,
+    "totalPages": 7,
+    "last": false
+  },
+  "timestamp": 1772800000000
+}
+```
 
 ---
 
