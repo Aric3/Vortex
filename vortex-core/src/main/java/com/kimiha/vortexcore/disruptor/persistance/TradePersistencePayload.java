@@ -4,8 +4,6 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDateTime;
-
 import com.kimiha.vortexcore.matching.TradeResult;
 
 @Data
@@ -13,7 +11,7 @@ import com.kimiha.vortexcore.matching.TradeResult;
 @NoArgsConstructor
 public class TradePersistencePayload {
     private String execId;
-    private LocalDateTime tradeTime;
+    private long tradeTimeEpochMs;
     private String market;
     private TradeResult tradeResult;
     private String takerSide;

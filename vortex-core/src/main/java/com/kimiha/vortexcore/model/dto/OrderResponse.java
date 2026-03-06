@@ -4,7 +4,9 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.kimiha.vortexcore.model.OrderStatus;
 import com.kimiha.vortexcore.model.domain.Order;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 
 /**
  * 订单查询/列表响应
@@ -30,7 +32,9 @@ public record OrderResponse(
         return new OrderResponse(
             e.getId(), e.getClOrderId(), e.getMarket(), e.getSecurityId(), e.getSide(),
             e.getQty(), e.getPrice(), e.getShareholderId(), e.getOrderQty(), e.getCumQty(),
-            e.getStatus(), e.getCreateTime(), e.getUpdatedTime()
+            e.getStatus(),
+            toLocalDateTime(e.getCreateTimeEpochMs()),
+            toLocalDateTime(e.getUpdatedTimeEpochMs())
         );
     }
 
@@ -39,7 +43,14 @@ public record OrderResponse(
         return new OrderResponse(
             null, o.getClOrderId(), o.getMarket(), o.getSecurityId(), o.getSide(),
             o.getQty(), o.getPrice(), o.getShareholderId(), o.getOrderQty(), o.getCumQty(),
-            o.getStatus(), o.getCreateTime(), o.getUpdatedTime()
+            o.getStatus(),
+            toLocalDateTime(o.getCreateTimeEpochMs()),
+            toLocalDateTime(o.getUpdatedTimeEpochMs())
         );
+    }
+
+    private static LocalDateTime toLocalDateTime(Long epochMs) {
+        if (epochMs == null || epochMs == 0L) return null;
+        return Instant.ofEpochMilli(epochMs).atZone(ZoneId.systemDefault()).toLocalDateTime();
     }
 }

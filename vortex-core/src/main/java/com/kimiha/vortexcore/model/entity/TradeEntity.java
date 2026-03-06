@@ -3,8 +3,6 @@ package com.kimiha.vortexcore.model.entity;
 import jakarta.persistence.*;
 import lombok.Data;
 
-import java.time.LocalDateTime;
-
 @Entity
 @Table(name = "trades", uniqueConstraints = @UniqueConstraint(columnNames = "exec_id"))
 @Data
@@ -18,7 +16,10 @@ public class TradeEntity {
     private String market;
     private Double price;
     private int qty;
-    private LocalDateTime tradeTime;
+
+    @Column(name = "trade_time_epoch_ms")
+    private Long tradeTimeEpochMs;
+
     private String takerClOrderId;
     private String makerClOrderId;
     private String takerSide;

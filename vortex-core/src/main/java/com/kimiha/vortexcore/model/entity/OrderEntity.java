@@ -2,8 +2,6 @@ package com.kimiha.vortexcore.model.entity;
 
 import com.kimiha.vortexcore.model.OrderStatus;
 
-import java.time.LocalDateTime;
-
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -11,8 +9,6 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.PrePersist;
-import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import lombok.Data;
 import lombok.AllArgsConstructor;
@@ -46,19 +42,11 @@ public class OrderEntity {
     @Enumerated(EnumType.STRING)
     @Column(columnDefinition = "varchar(255) check (status in ('New','PartiallyFilled','Filled','Canceled','Rejected')) default 'New'")
     private OrderStatus status;
-    private LocalDateTime updatedTime;
-    private LocalDateTime createTime;
 
-    @PrePersist
-    protected void onCreate() {
-        createTime = LocalDateTime.now();
-        if (updatedTime == null) updatedTime = createTime;
-    }
-
-    @PreUpdate
-    protected void onUpdate() {
-        updatedTime = LocalDateTime.now();
-    }
+    @Column(name = "create_time_epoch_ms")
+    private Long createTimeEpochMs;
+    @Column(name = "updated_time_epoch_ms")
+    private Long updatedTimeEpochMs;
 
     public static OrderEntity copySnapshot(OrderEntity source) {
         OrderEntity copy = new OrderEntity();
@@ -72,8 +60,8 @@ public class OrderEntity {
         copy.setOrderQty(source.getOrderQty());
         copy.setCumQty(source.getCumQty());
         copy.setStatus(source.getStatus());
-        copy.setUpdatedTime(source.getUpdatedTime());
-        copy.setCreateTime(source.getCreateTime());
+        copy.setUpdatedTimeEpochMs(source.getUpdatedTimeEpochMs());
+        copy.setCreateTimeEpochMs(source.getCreateTimeEpochMs());
         return copy;
     }
 }

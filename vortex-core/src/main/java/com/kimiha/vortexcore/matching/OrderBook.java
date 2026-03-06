@@ -5,7 +5,6 @@ import com.kimiha.vortexcore.model.OrderStateMachine;
 import com.kimiha.vortexcore.model.OrderStatus;
 import com.kimiha.vortexcore.model.domain.Order;
 
-import java.time.LocalDateTime;
 import java.util.*;
 
 public class OrderBook {
@@ -136,7 +135,7 @@ public class OrderBook {
     public MatchResult executeMatch(Order newOrder) {
         List<TradeResult> tradeResults = new ArrayList<>();
         List<Order> ordersUpdated = new ArrayList<>();
-        LocalDateTime now = LocalDateTime.now();
+        long nowEpochMs = System.currentTimeMillis();
         // 对手盘
         TreeMap<Double, LinkedHashMap<String, Order>> counterParties = "B".equals(newOrder.getSide()) ? asks : bids;
 
@@ -163,7 +162,7 @@ public class OrderBook {
                 newOrder.setCumQty(newOrder.getCumQty() + tradeQty);
                 maker.setQty(maker.getQty() - tradeQty);
                 maker.setCumQty(maker.getCumQty() + tradeQty);
-                maker.setUpdatedTime(now);
+                maker.setUpdatedTimeEpochMs(nowEpochMs);
                 ordersUpdated.add(maker);
                 if (maker.getQty() == 0) {
                     OrderStateMachine.transition(maker, OrderStatus.Filled);

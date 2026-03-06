@@ -87,7 +87,7 @@ public class OrderService {
 
     @Transactional(readOnly = true)
     public Page<OrderEntity> findByShareholderId(String shareholderId, int page, int size) {
-        PageRequest pageRequest = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createTime"));
+        PageRequest pageRequest = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createTimeEpochMs"));
         return orderRepository.findByShareholderId(shareholderId, pageRequest);
     }
 

@@ -112,11 +112,12 @@ class TradingServiceValidationTest {
     }
 
     @Test
-    void validate_qtyZero_passes() {
+    void validate_qtyZero_fails() {
         OrderEntity order = validOrder("ORD0000000000008");
         order.setQty(0);
         ValidationResult validation = tradingService.validateOrder(Order.fromEntity(order));
-        assertTrue(validation.isSuccess());
+        assertFalse(validation.isSuccess());
+        assertTrue(validation.getMessage().contains("qty"));
     }
 
     @Test
