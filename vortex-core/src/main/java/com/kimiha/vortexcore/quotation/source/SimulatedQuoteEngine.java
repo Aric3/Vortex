@@ -17,7 +17,8 @@ import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 模拟行情引擎：在已有缓存快照（或配置初始价）基础上，按间隔推进生成符合典型走势的 tick，写入 QuotationCache
+ * 模拟行情引擎：在已有缓存快照（或配置初始价）基础上，按间隔推进生成 tick，写入 QuotationCache
+ * 价格走势为简化金融模型，可配置为横盘、随机游走、均值回归或线性趋势，用于测试与演示
  * 仅在 quotation.source=simulated_only 或 real_then_simulated 时启用
  */
 @Service
@@ -54,6 +55,7 @@ public class SimulatedQuoteEngine {
         Map<String, Double> initialPrice = sim.getInitialPrice();
         double defaultPrice = sim.getDefaultInitialPrice();
 
+        String subMode = sim.getSubscriptionMode() != null ? sim.getSubscriptionMode() : "both";
         for (String code : symbols) {
             TickSnapshot current = quoteCache.getTick(code);
             double lastPrice;
@@ -73,11 +75,14 @@ public class SimulatedQuoteEngine {
             nextPrice = roundToDecimals(nextPrice, priceDecimalsForCode(code));
             long nextVolume = lastVolume + (long) (RANDOM.nextInt(100) + 10);
 
-            quoteCache.putTick(code, nextPrice, nextVolume, nowMs);
-
-            List<QuoteLevel> bids = buildSimulatedBids(nextPrice, code);
-            List<QuoteLevel> asks = buildSimulatedAsks(nextPrice, code);
-            quoteCache.putHandicap(code, bids, asks, nowMs);
+            if ("tick".equals(subMode) || "both".equals(subMode)) {
+                quoteCache.putTick(code, nextPrice, nextVolume, nowMs);
+            }
+            if ("both".equals(subMode)) {
+                List<QuoteLevel> bids = buildSimulatedBids(nextPrice, code);
+                List<QuoteLevel> asks = buildSimulatedAsks(nextPrice, code);
+                quoteCache.putHandicap(code, bids, asks, nowMs);
+            }
         }
     }
 

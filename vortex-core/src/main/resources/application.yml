@@ -50,13 +50,16 @@ quotation:
             
         heartbeat-interval-ms: 10000
         reconnect-interval-ms: 5000
+    # 模拟行情：简化走势模型
     simulation:
         interval-ms: 1000 # 模拟行情间隔时间，单位：毫秒
-        volatility: 0.01 # 模拟行情波动率
-        trend: flat # 模拟行情趋势
-        trend-step: 0.02 # 模拟行情趋势步长
-        mean-reversion-rate: 0.1 # 模拟行情均值回归率
-        default-initial-price: 10.0 # 模拟行情默认初始价格
+        # subscription-mode: tick=仅最新成交价 | both=两者都生成
+        subscription-mode: both
+        volatility: 0.01 # 每步波动（flat/trend 为均匀噪声半宽；random_walk 为高斯标准差）
+        trend: flat # flat | random_walk | mean_reversion | trend_up | trend_down
+        trend-step: 0.02 # trend_up/trend_down 时每步固定漂移量（元）
+        mean-reversion-rate: 0.1 # mean_reversion 时向锚点价回归的速度
+        default-initial-price: 10.0 # 未在 initial-price 中配置的标的默认初始价
         symbols:
             - "600030.SH" # 中信证券
             - "600519.SH" # 贵州茅台
