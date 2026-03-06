@@ -4,12 +4,14 @@ import com.kimiha.vortexcore.model.ProcessOrderResult;
 import com.kimiha.vortexcore.model.Result;
 import com.kimiha.vortexcore.model.ResultCode;
 import com.kimiha.vortexcore.model.ValidationResult;
+import com.kimiha.vortexcore.model.dto.OrderHistoryPageResponse;
 import com.kimiha.vortexcore.model.dto.OrderResponse;
 import com.kimiha.vortexcore.model.dto.OrderSubmitRequest;
 import com.kimiha.vortexcore.model.dto.report.CancelRequest;
 import com.kimiha.vortexcore.model.dto.report.OrderReportEnvelope;
 import com.kimiha.vortexcore.service.OrderReportStreamService;
 import com.kimiha.vortexcore.service.OrderService;
+import org.springframework.data.domain.Page;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -44,6 +46,34 @@ public class OrderController {
                 .map(OrderResponse::fromEntity)
                 .collect(Collectors.toList());
         return Result.success(all, "Orders retrieved successfully");
+    }
+
+    @GetMapping("/orders/history")
+    public Result getOrderHistoryByShareholderId(
+            @RequestParam String shareholderId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        if (shareholderId == null || shareholderId.length() != 10) {
+            return Result.fail(ResultCode.VALIDATION_ERROR, "shareholderId invalid");
+        }
+        if (page < 0) {
+            return Result.fail(ResultCode.VALIDATION_ERROR, "page invalid");
+        }
+        if (size <= 0 || size > 200) {
+            return Result.fail(ResultCode.VALIDATION_ERROR, "size invalid");
+        }
+
+        Page<OrderResponse> paged = orderService.findByShareholderId(shareholderId, page, size)
+                .map(OrderResponse::fromEntity);
+        OrderHistoryPageResponse response = new OrderHistoryPageResponse(
+                paged.getContent(),
+                paged.getNumber(),
+                paged.getSize(),
+                paged.getTotalElements(),
+                paged.getTotalPages(),
+                paged.isLast()
+        );
+        return Result.success(response, "Order history retrieved successfully");
     }
 
     @PostMapping("/orders/cancel")

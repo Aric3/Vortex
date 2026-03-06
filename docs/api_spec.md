@@ -1,4 +1,4 @@
-# Vortex 系统接口规范 v2.1
+﻿# Vortex 系统接口规范 v2.1
 ## 1. 客户端相关接口（/api/v1/vclient）
 ### 1.1 下单
 - 请求方式：POST
@@ -94,7 +94,7 @@
     ],
     "asks": [],
     "timestamp": 1772023126873
-    }
+   }
    ```
 
 - 请求方式：GET（SSE推送）
@@ -129,6 +129,48 @@
 - 请求方式：GET（SSE 推送，两个接口）
 - 接口路径：/api/v1/vclient/quote/stream/tick/{securityId} — 持续推送最新成交价（tick），供前端参考价。每条事件 JSON：`{ "code", "lastPrice", "volume", "tickTimeMs" }`，无数据时为 null。
 - 接口路径：/api/v1/vclient/quote/stream/handicap/{securityId} — 持续推送买卖五档（handicap），供前端盘口。每条事件 JSON：`{ "code", "bids", "asks", "tickTimeMs" }`，无数据时为 null。响应均为 `Content-Type: text/event-stream`。
+
+### 1.6 按股东号查询历史订单
+- 请求方式：GET
+- 接口路径：`/api/v1/vclient/orders/history?shareholderId=&page=&size=`
+- 查询参数：
+  - `shareholderId`（必填，10位股东号）
+  - `page`（可选，默认 `0`，从 `0` 开始）
+  - `size`（可选，默认 `20`，取值 `1~200`）
+- 说明：按创建时间倒序分页返回该股东的历史订单（最新在前）。
+- 响应示例：
+```json
+{
+  "success": true,
+  "code": 0,
+  "message": "Order history retrieved successfully",
+  "data": {
+    "content": [
+      {
+        "id": 101,
+        "clOrderId": "d4fbb7ca6e2341fc",
+        "market": "XSHG",
+        "securityId": "600030",
+        "side": "B",
+        "qty": 1000,
+        "price": 25.8,
+        "shareholderId": "A000000001",
+        "orderQty": 1000,
+        "cumQty": 600,
+        "status": "PartiallyFilled",
+        "createTime": "2026-03-06T10:00:00",
+        "updatedTime": "2026-03-06T10:00:01"
+      }
+    ],
+    "page": 0,
+    "size": 20,
+    "totalElements": 125,
+    "totalPages": 7,
+    "last": false
+  },
+  "timestamp": 1772800000000
+}
+```
 
 ---
 
@@ -209,35 +251,43 @@
 
 ## 3. Analytics 接口
 
-### 3.1 获取实时分析指标
+### 3.1 实时分析指标流（SSE）
 - 请求方式：`GET`
-- 接口路径：`/api/v1/analytics/metrics`
-- 说明：返回当前缓存的实时指标快照（默认每 1 秒刷新一次）。
+- 接口路径：`/api/v1/analytics/metrics/stream`
+- 响应类型：`text/event-stream`
+- 说明：前端通过长连接持续接收实时指标更新。
 
 #### 响应示例
 ```json
 {
-  "washRejects": 767,
-  "totalOrders": 12181,
-  "washRatio": 0.062967,
-  "latencyBuckets": [
-    { "bucket": "0-1ms", "count": 1567 },
-    { "bucket": "2-5ms", "count": 459 },
-    { "bucket": "6-10ms", "count": 95 },
-    { "bucket": "11-50ms", "count": 753 },
-    { "bucket": "51-100ms", "count": 55 },
-    { "bucket": "101-500ms", "count": 448 },
-    { "bucket": ">500ms", "count": 1955 }
-  ],
-  "timestamp": 1772159000123
+  "success": true,
+  "code": 0,
+  "message": "Metrics stream update",
+  "data": {
+    "washRejects": 767,
+    "totalOrders": 12181,
+    "washRatio": 0.062967,
+    "latencyBuckets": [
+      { "bucket": "0-1ms", "count": 1567 },
+      { "bucket": "2-5ms", "count": 459 },
+      { "bucket": "6-10ms", "count": 95 },
+      { "bucket": "11-50ms", "count": 753 },
+      { "bucket": "51-100ms", "count": 55 },
+      { "bucket": "101-500ms", "count": 448 },
+      { "bucket": ">500ms", "count": 1955 }
+    ],
+    "timestamp": 1772159000123
+  },
+  "timestamp": 1772159000456
 }
 ```
 
 #### 字段说明
-- `washRejects`：对敲拒绝订单数（`reject_code = 4001`）。
-- `totalOrders`：订单总量（`orders` 通过订单 + `order_rejects` 拒绝订单，用于口径分母）。
-- `washRatio`：对敲占比（`washRejects / totalOrders`）。
-- `latencyBuckets`：成交延时分桶统计（按订单首笔成交时间计算，每个订单只计一次）。
-- `bucket`：延时区间（毫秒）。
-- `count`：该区间内订单数量。
-- `timestamp`：指标快照更新时间（Unix 毫秒时间戳）。
+- `success/code/message`：统一响应包装字段。
+- `data.washRejects`：对敲拒绝订单数（`reject_code = 4001`）。
+- `data.totalOrders`：订单总量（`orders` 通过订单 + `order_rejects` 拒绝订单，用于口径分母）。
+- `data.washRatio`：对敲占比（`washRejects / totalOrders`）。
+- `data.latencyBuckets`：成交延时分桶统计（按订单首笔成交时间计算，每个订单只计一次）。
+- `data.latencyBuckets[].bucket`：延时区间（毫秒）。
+- `data.latencyBuckets[].count`：该区间内订单数量。
+- `data.timestamp`：指标快照更新时间（Unix 毫秒时间戳）。
