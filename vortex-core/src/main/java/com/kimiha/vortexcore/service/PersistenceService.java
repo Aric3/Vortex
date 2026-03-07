@@ -1,11 +1,11 @@
 package com.kimiha.vortexcore.service;
 
-import com.kimiha.vortexcore.disruptor.CancelResultPayload;
-import com.kimiha.vortexcore.disruptor.PersistenceEvent;
-import com.kimiha.vortexcore.disruptor.TradePersistencePayload;
+import com.kimiha.vortexcore.disruptor.persistance.CancelResultPayload;
+import com.kimiha.vortexcore.disruptor.persistance.PersistenceEvent;
+import com.kimiha.vortexcore.disruptor.persistance.TradePersistencePayload;
 import com.kimiha.vortexcore.model.entity.*;
 import com.kimiha.vortexcore.model.domain.Order;
-import com.kimiha.vortexcore.model.dto.OrderReject;
+import com.kimiha.vortexcore.model.dto.report.OrderReject;
 import com.kimiha.vortexcore.repository.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -79,7 +79,7 @@ public class PersistenceService {
             if (existing != null) {
                 existing.setStatus(order.getStatus());
                 existing.setCumQty(order.getCumQty());
-                existing.setUpdatedTime(order.getUpdatedTime() != null ? order.getUpdatedTime() : LocalDateTime.now());
+                existing.setUpdatedTimeEpochMs(order.getUpdatedTimeEpochMs());
                 orderRepository.save(existing);
             }
         }
@@ -121,7 +121,7 @@ public class PersistenceService {
         var tr = p.getTradeResult();
         TradeEntity e = new TradeEntity();
         e.setExecId(p.getExecId());
-        e.setTradeTime(p.getTradeTime() != null ? p.getTradeTime() : LocalDateTime.now());
+        e.setTradeTimeEpochMs(p.getTradeTimeEpochMs());
         e.setMarket(p.getMarket());
         e.setSecurityId(tr.securityId());
         e.setPrice(tr.price());

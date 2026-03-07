@@ -6,7 +6,8 @@ public enum ResultCode {
     NOT_FOUND(1001),
     SYSTEM_ERROR(5000),
     WASH_TRADE_REJECT(4001),
-    DUPLICATE_CL_ORDER_ID(4002);
+    DUPLICATE_CL_ORDER_ID(4002),
+    PRICE_DEVIATION_REJECT(4003);
 
     private final int code;
 

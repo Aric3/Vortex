@@ -2,28 +2,24 @@
   <div class="page">
     <header class="header">
       <div>
-        <h1 class="h1">Vortex 交易看板（最小版）</h1>
-        <p class="sub">订单簿（实时） + 当前用户成交分布（实时）。后续可直接嵌入管理后台框架。</p>
+        <h1 class="h1">Vortex 交易看板</h1>
       </div>
     </header>
 
     <section class="panel">
       <div class="field">
         <label>股东号 shareholderId</label>
-        <input v-model.trim="shareholderId" placeholder="例如 A001" />
-        <div class="hint">用于订阅回报 SSE（成交分布图）。</div>
+        <input v-model.trim="shareholderId" placeholder="例如 A000000001（10位）" />
       </div>
 
       <div class="field">
         <label>股票代码 securityId</label>
         <input v-model.trim="securityId" placeholder="例如 600030" />
-        <div class="hint">用于订阅订单簿 SSE（买卖盘图）并过滤成交统计。</div>
       </div>
 
       <div class="field small">
         <label>深度 depth</label>
         <input v-model.number="depth" type="number" min="1" max="50" />
-        <div class="hint">订单簿显示 TopN 档。</div>
       </div>
     </section>
 
@@ -33,14 +29,14 @@
     </main>
 
     <section class="grid secondary">
-      <TradingConsole :shareholder-id="shareholderId" :security-id="securityId" />
+      <TradingConsole :shareholder-id="shareholderId" :security-id="securityId"
+        @order-submitted="onOrderSubmitted" @report="onReport" />
+      <OrderStatusTable :shareholder-id="shareholderId" :security-id="securityId"
+        :refresh-key="refreshKey" :local-orders="localOrders" />
       <AnalyticsPanel />
     </section>
 
     <footer class="footer">
-      <div class="tip">
-        提示：如果你看到“连接异常”，先确认后端已启动（vortex-core），并且 vite 代理已配置（/api → 后端端口）。
-      </div>
     </footer>
   </div>
 </template>
@@ -50,11 +46,68 @@ import { ref } from "vue";
 import OrderBookCompareChart from "../components/charts/OrderBookCompareChart.vue";
 import TradeDistributionChart from "../components/charts/TradeDistributionChart.vue";
 import TradingConsole from "../components/TradingConsole.vue";
+import OrderStatusTable from "../components/OrderStatusTable.vue";
 import AnalyticsPanel from "../components/AnalyticsPanel.vue";
 
-const shareholderId = ref<string>("A001");
+const shareholderId = ref<string>("A000000001");
 const securityId = ref<string>("600030");
 const depth = ref<number>(10);
+
+// order status refresh trigger
+const refreshKey = ref<number>(0);
+// keep a lightweight local list so newly submitted orders show up immediately
+const localOrders = ref<any[]>([]);
+
+function onOrderSubmitted(payload: any) {
+  // payload: { clOrderId, market, securityId, side, qty, price, shareholderId }
+  refreshKey.value += 1;
+  localOrders.value.unshift({
+    ...payload,
+    status: "SUBMITTED",
+    updatedAt: Date.now(),
+  });
+}
+
+function onReport(env: any) {
+  // Update local order status based on reports.
+  const d = env?.data || {};
+  const cl = d.clOrderId;
+  const orig = d.origClOrderId;
+  const now = Date.now();
+  const apply = (id: string | undefined, status: string) => {
+    if (!id) return;
+    const it = localOrders.value.find((x) => x.clOrderId === id);
+    if (it) {
+      it.status = status;
+      it.updatedAt = now;
+      it.lastReport = env.reportType;
+    }
+  };
+
+  switch (env?.reportType) {
+    case "ORDER_CONFIRM":
+      apply(cl, "CONFIRMED");
+      refreshKey.value += 1;
+      break;
+    case "ORDER_REJECT":
+      apply(cl, "REJECTED");
+      break;
+    case "ORDER_EXECUTION":
+      apply(cl, "EXECUTED");
+      refreshKey.value += 1;
+      break;
+    case "CANCEL_CONFIRM":
+      apply(orig, "CANCELED");
+      refreshKey.value += 1;
+      break;
+    case "CANCEL_REJECT":
+      apply(orig, "CANCEL_REJECTED");
+      break;
+    default:
+      break;
+  }
+}
+
 </script>
 
 <style scoped>

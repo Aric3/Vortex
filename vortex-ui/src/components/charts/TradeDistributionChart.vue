@@ -1,7 +1,7 @@
 <template>
   <div class="card">
     <div class="head">
-      <div class="title">成交分布图（当前用户）</div>
+      <div class="title">成交分布图</div>
       <div class="meta">
         <span class="pill">股东号：{{ shareholderId }}</span>
         <span class="pill">股票：{{ securityId }}</span>

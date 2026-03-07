@@ -245,6 +245,7 @@ watch(
   }
 );
 
+<<<<<<< HEAD
 // 下单/撤单表单中的股东号、股票代码同步回全局筛选 store，保证 SSE 订阅与下单使用同一股东号，并参与持久化
 watch(
   () => [orderForm.shareholderId, orderForm.securityId],
@@ -280,6 +281,41 @@ async function submitOrder() {
   }
   if (sid.length !== 6) {
     ElMessage.error('股票代码须为 6 位字符串。');
+=======
+function genClOrderId(prefix: string): string {
+  // API 标准：clOrderId 为 16 位字符串（建议仅使用大写字母与数字）
+  const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const p = (prefix || 'O').slice(0, 1).toUpperCase();
+  let body = '';
+  for (let i = 0; i < 15; i++) {
+    body += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return (p + body).slice(0, 16);
+}
+
+function isValidShareholderId(v: string): boolean {
+  return (v || '').trim().length === 10;
+}
+
+function isValidSecurityId(v: string): boolean {
+  const s = (v || '').trim();
+  return /^[0-9]{6}$/.test(s);
+}
+
+async function submitOrder() {
+  const sh = orderForm.shareholderId?.trim();
+  const sec = orderForm.securityId?.trim();
+  if (!sh || !sec) {
+    ElMessage.error('股东号与股票代码不能为空（可从顶部面板填写）。');
+>>>>>>> 3663ffd12426c5c9df17863ab6d5e0b72b44216f
+    return;
+  }
+  if (!isValidShareholderId(sh)) {
+    ElMessage.error('股东号不合法：必须为 10 位字符串（例如 A000000001）。');
+    return;
+  }
+  if (!isValidSecurityId(sec)) {
+    ElMessage.error('股票代码不合法：必须为 6 位数字（例如 600030）。');
     return;
   }
   if (!orderForm.qty || orderForm.qty <= 0 || !orderForm.price || orderForm.price <= 0) {
@@ -299,6 +335,12 @@ async function submitOrder() {
       return;
     }
     ElMessage.success(`下单已提交，clOrderId = ${res.data.data?.clOrderId || payload.clOrderId}`);
+<<<<<<< HEAD
+=======
+    emit('order-submitted', payload);
+
+    reconnectReports();
+>>>>>>> 3663ffd12426c5c9df17863ab6d5e0b72b44216f
   } catch (e: any) {
     ElMessage.error(`下单异常：${e?.message || '网络错误'}`);
   } finally {
@@ -307,6 +349,7 @@ async function submitOrder() {
 }
 
 async function submitCancel() {
+<<<<<<< HEAD
   const sh = cancelForm.shareholderId?.trim() ?? '';
   const sid = cancelForm.securityId?.trim() ?? '';
   const orig = cancelForm.origClOrderId?.trim() ?? '';
@@ -324,6 +367,25 @@ async function submitCancel() {
   }
   if (orig.length !== 16) {
     ElMessage.error('原订单号须为 16 位字符串（可从订单状态表复制）。');
+=======
+  const sh = cancelForm.shareholderId?.trim();
+  const sec = cancelForm.securityId?.trim();
+  const orig = cancelForm.origClOrderId?.trim();
+  if (!sh || !sec || !orig) {
+    ElMessage.error('股东号、股票代码与原订单号不能为空。');
+    return;
+  }
+  if (!isValidShareholderId(sh)) {
+    ElMessage.error('股东号不合法：必须为 10 位字符串（例如 A000000001）。');
+    return;
+  }
+  if (!isValidSecurityId(sec)) {
+    ElMessage.error('股票代码不合法：必须为 6 位数字（例如 600030）。');
+    return;
+  }
+  if (orig.length !== 16) {
+    ElMessage.error('原订单号 origClOrderId 不合法：必须为 16 位字符串。');
+>>>>>>> 3663ffd12426c5c9df17863ab6d5e0b72b44216f
     return;
   }
 
@@ -403,11 +465,15 @@ function statusTagType(status: string): 'success' | 'warning' | 'danger' | 'info
 const REPORT_TYPES = ['ORDER_CONFIRM', 'ORDER_REJECT', 'ORDER_EXECUTION', 'CANCEL_CONFIRM', 'CANCEL_REJECT', 'HEARTBEAT'] as const;
 
 function pushReport(env: OrderReportEnvelopeTyped<any>) {
+<<<<<<< HEAD
   const reportType = typeof env.reportType === 'string'
     ? env.reportType
     : REPORT_TYPES[env.reportType as number] ?? String(env.reportType);
   if (reportType === 'HEARTBEAT') return;
 
+=======
+  if (env?.reportType === 'HEARTBEAT') return;
+>>>>>>> 3663ffd12426c5c9df17863ab6d5e0b72b44216f
   const now = new Date();
   const timeText = now.toLocaleTimeString('zh-CN', { hour12: false });
 
@@ -530,12 +596,20 @@ function reconnectReports() {
     reportStatus.value = '回报流连接异常，准备重试...';
   };
   es.onmessage = (evt) => {
+<<<<<<< HEAD
     const raw = typeof evt.data === 'string' ? evt.data : '';
     const lines = raw.split(/\r?\n/).map((s) => s.replace(/^\s*data:\s*/, '').trim()).filter(Boolean);
     for (const line of lines) {
       const env = safeJsonParse<OrderReportEnvelopeTyped<any>>(line);
       if (env && env.reportType != null) pushReport(env);
     }
+=======
+    const env = safeJsonParse<OrderReportEnvelopeTyped<any>>(evt.data);
+    if (!env) return;
+    if (env.reportType === 'HEARTBEAT') return;
+    emit('report', env);
+    pushReport(env);
+>>>>>>> 3663ffd12426c5c9df17863ab6d5e0b72b44216f
   };
 }
 

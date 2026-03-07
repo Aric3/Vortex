@@ -4,8 +4,6 @@ import com.kimiha.vortexcore.model.OrderStatus;
 import com.kimiha.vortexcore.model.dto.OrderSubmitRequest;
 import com.kimiha.vortexcore.model.entity.OrderEntity;
 
-import java.time.LocalDateTime;
-
 import lombok.Data;
 import lombok.AllArgsConstructor;
 import lombok.NoArgsConstructor;
@@ -30,8 +28,8 @@ public class Order {
     private int orderQty; // 剩余待成交数量 (4字节无符号整数)
     private int cumQty; // 累计成交量 (4字节无符号整数)
     private OrderStatus status; // 订单状态 (New, PartiallyFilled, Filled, Canceled, Rejected)
-    private LocalDateTime updatedTime; // 更新时间
-    private LocalDateTime createTime; // 创建时间
+    private long updatedTimeEpochMs; // 更新时间 (epoch 毫秒)
+    private long createTimeEpochMs; // 创建时间 (epoch 毫秒)
 
     /** 从 OrderEntity 转为 Order（用于从 DB 加载后参与领域逻辑或返回前转 DTO 的中间表示） */
     public static Order fromEntity(OrderEntity e) {
@@ -47,8 +45,8 @@ public class Order {
         .orderQty(e.getOrderQty())
         .cumQty(e.getCumQty())
         .status(e.getStatus())
-        .updatedTime(e.getUpdatedTime())
-        .createTime(e.getCreateTime())
+        .updatedTimeEpochMs(e.getUpdatedTimeEpochMs() != null ? e.getUpdatedTimeEpochMs() : 0L)
+        .createTimeEpochMs(e.getCreateTimeEpochMs() != null ? e.getCreateTimeEpochMs() : 0L)
         .build();
     }
 
@@ -65,14 +63,15 @@ public class Order {
         .orderQty(orderQty)
         .cumQty(cumQty)
         .status(status)
-        .updatedTime(updatedTime)
-        .createTime(createTime != null ? createTime : LocalDateTime.now())
+        .updatedTimeEpochMs(updatedTimeEpochMs)
+        .createTimeEpochMs(createTimeEpochMs)
         .build();
     }
 
     /** 从下单请求构建 Order（用于入队）；orderQty/cumQty/status 在 Handler 入簿前再设 */
     public static Order fromRequest(OrderSubmitRequest r) {
-        if (r == null) return null; 
+        if (r == null) return null;
+        long nowMs = System.currentTimeMillis();
         return Order.builder()
         .clOrderId(r.clOrderId())
         .market(r.market())
@@ -84,8 +83,8 @@ public class Order {
         .orderQty(r.qty() != null ? r.qty() : 0)
         .cumQty(0)
         .status(OrderStatus.New)
-        .updatedTime(LocalDateTime.now())
-        .createTime(LocalDateTime.now())
+        .updatedTimeEpochMs(nowMs)
+        .createTimeEpochMs(nowMs)
         .build();
     }
 
@@ -103,8 +102,8 @@ public class Order {
         .orderQty(source.getOrderQty())
         .cumQty(source.getCumQty())
         .status(source.getStatus())
-        .updatedTime(source.getUpdatedTime())
-        .createTime(source.getCreateTime())
+        .updatedTimeEpochMs(source.getUpdatedTimeEpochMs())
+        .createTimeEpochMs(source.getCreateTimeEpochMs())
         .build();
     }
 }

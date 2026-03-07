@@ -3,8 +3,10 @@ package com.kimiha.vortexcore.disruptor;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.kimiha.vortexcore.Utils;
-import com.kimiha.vortexcore.engine.MatchingEngine;
-import com.kimiha.vortexcore.engine.OrderBook;
+import com.kimiha.vortexcore.disruptor.order.OrderEvent;
+import com.kimiha.vortexcore.disruptor.order.OrderEventHandler;
+import com.kimiha.vortexcore.matching.MatchingEngine;
+import com.kimiha.vortexcore.matching.OrderBook;
 import com.kimiha.vortexcore.model.domain.Order;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -38,7 +40,7 @@ class OrderEventHandlerTest {
     @BeforeEach
     void setUp() {
         matchingEngine = new MatchingEngine();
-        handler = new OrderEventHandler(matchingEngine, null, null, null);
+        handler = new OrderEventHandler(matchingEngine, null, null, null, null, false, 0.02);
     }
 
     @Test

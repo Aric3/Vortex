@@ -43,6 +43,8 @@ class TradingUser(HttpUser):
         """每个模拟用户启动时执行一次"""
         # 为每个用户分配一个固定的股东号
         self.shareholder_id = random.choice(self.SHAREHOLDER_POOL)
+        # 存储已发送的订单信息，用于后续撤单
+        self.pending_orders = []
         print(f"用户启动，股东号: {self.shareholder_id}")
 
     def generate_order_id(self):
@@ -128,6 +130,18 @@ class TradingUser(HttpUser):
                             print(f"✓ 触发对敲撮合 - 价格: {match_info.get('matchPrice')}, "
                                   f"数量: {match_info.get('matchQty')}")
                         else:
+                            # 订单成功发送到交易所，保存订单信息用于后续撤单
+                            self.pending_orders.append({
+                                "clOrderId": order_data["clOrderId"],
+                                "market": order_data["market"],
+                                "securityId": order_data["securityId"],
+                                "side": order_data["side"],
+                                "shareholderId": order_data["shareholderId"]
+                            })
+                            # 限制列表大小，避免内存占用过大
+                            if len(self.pending_orders) > 50:
+                                self.pending_orders.pop(0)
+                            
                             response.success()
                             print(f"✓ 订单已发送到交易所 - {order_type} "
                                   f"{order_data['securityId']} "
@@ -135,6 +149,58 @@ class TradingUser(HttpUser):
                     else:
                         response.failure(f"业务错误 [{resp_json.get('code')}]: {resp_json.get('message')}")
                         print(f"✗ 下单失败: {resp_json.get('message')}")
+                        
+                except json.JSONDecodeError:
+                    response.failure("响应不是有效的 JSON 格式")
+                    print(f"✗ JSON 解析失败: {response.text[:100]}")
+            else:
+                response.failure(f"HTTP {response.status_code}")
+                print(f"✗ HTTP 错误 {response.status_code}: {response.text[:100]}")
+
+    @task(3)
+    def cancel_order(self):
+        """模拟撤单请求（权重3）"""
+        # 检查是否有可撤销的订单
+        if not self.pending_orders:
+            # 如果没有待撤订单，跳过本次撤单
+            return
+        
+        # 随机选择一个待撤订单
+        original_order = random.choice(self.pending_orders)
+        
+        # 构造撤单请求
+        cancel_data = {
+            "clOrderId": self.generate_order_id(),  # 撤单请求的唯一编号
+            "origClOrderId": original_order["clOrderId"],  # 待撤原始订单编号
+            "market": original_order["market"],
+            "securityId": original_order["securityId"],
+            "side": original_order["side"],
+            "shareholderId": original_order["shareholderId"]
+        }
+        
+        headers = {'Content-Type': 'application/json'}
+        
+        with self.client.post(
+            "/api/v1/vclient/orders/cancel",
+            data=json.dumps(cancel_data),
+            headers=headers,
+            catch_response=True,
+            name="撤单"
+        ) as response:
+            
+            if response.status_code == 200:
+                try:
+                    resp_json = response.json()
+                    
+                    if resp_json.get("success") and resp_json.get("code") == 0:
+                        # 撤单请求成功，从待撤列表中移除
+                        self.pending_orders.remove(original_order)
+                        response.success()
+                        print(f"✓ 撤单请求已发送 - 原订单: {original_order['clOrderId'][:8]}... "
+                              f"{original_order['securityId']}")
+                    else:
+                        response.failure(f"业务错误 [{resp_json.get('code')}]: {resp_json.get('message')}")
+                        print(f"✗ 撤单失败: {resp_json.get('message')}")
                         
                 except json.JSONDecodeError:
                     response.failure("响应不是有效的 JSON 格式")

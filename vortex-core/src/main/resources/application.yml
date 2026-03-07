@@ -11,6 +11,8 @@ server:
 vortex:
     matching:
         shards: 8  # 订单事件分片数
+        price-deviation-check-enabled: true   # 是否启用价格偏离校验
+        price-deviation-max: 0.02            # 最大偏离比例，0.02=2%，0.10=10%
 
 spring:
     application:
@@ -32,4 +34,52 @@ spring:
 analytics:
     enabled: true
     refresh-interval-ms: 1000
-        
+
+# 行情来源统一配置：alltick（真实）与 simulation（模拟）
+# source: real_only=仅真实 | simulated_only=仅模拟 | real_then_simulated=先真实再由模拟推进
+quotation:
+    enabled: true
+    source: simulated_only
+    alltick:
+        quote-url: wss://quote.alltick.co/quote-stock-b-ws-api
+        token: d809da32986f54f1a19ae469dd54a3d5-c-app
+        # subscription-mode: tick=仅最新成交价 | handicap=仅买卖五档 | both=两者都订阅
+        subscription-mode: tick
+        symbols:
+            - "600030.SH" # 中信证券
+            - "600519.SH" # 贵州茅台    
+            - "600036.SH" # 招商银行
+            - "000001.SZ" # 平安银行
+            - "000858.SZ" # 五粮液
+            - "0700.HK" # 腾讯控股 (Tencent)
+            - "AAPL.US" # 苹果公司 (Apple)
+            
+        heartbeat-interval-ms: 10000
+        reconnect-interval-ms: 5000
+    # 模拟行情：简化走势模型
+    simulation:
+        interval-ms: 1000 # 模拟行情间隔时间，单位：毫秒
+        # subscription-mode: tick=仅最新成交价 | both=两者都生成
+        subscription-mode: both
+        volatility: 0.01 # 每步波动（flat/trend 为均匀噪声半宽；random_walk 为高斯标准差）
+        trend: flat # flat | random_walk | mean_reversion | trend_up | trend_down
+        trend-step: 0.02 # trend_up/trend_down 时每步固定漂移量（元）
+        mean-reversion-rate: 0.1 # mean_reversion 时向锚点价回归的速度
+        default-initial-price: 10.0 # 未在 initial-price 中配置的标的默认初始价
+        symbols:
+            - "600030.SH" # 中信证券
+            - "600519.SH" # 贵州茅台
+            - "600036.SH" # 招商银行    
+            - "000001.SZ" # 平安银行
+            - "000858.SZ" # 五粮液
+            - "0700.HK" # 腾讯控股 (Tencent)
+            - "AAPL.US" # 苹果公司 (Apple)
+        initial-price: # 模拟行情初始价格，格式：股票代码: 价格，如 "600030.SH": 27.0
+            "600030.SH": 26.15
+            "600519.SH": 1395.48
+            "600036.SH": 39.16
+            "000001.SZ": 10.82
+            "000858.SZ": 101.17
+            "0700.HK": 300.0
+            "AAPL.US": 150.0
+

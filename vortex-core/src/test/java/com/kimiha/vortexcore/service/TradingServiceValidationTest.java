@@ -7,8 +7,8 @@ import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.kimiha.vortexcore.disruptor.OrderEvent;
 import com.kimiha.vortexcore.model.entity.OrderEntity;
+import com.kimiha.vortexcore.disruptor.order.OrderEvent;
 import com.kimiha.vortexcore.model.ValidationResult;
 import com.kimiha.vortexcore.model.domain.Order;
 import com.kimiha.vortexcore.repository.OrderRepository;
@@ -112,11 +112,12 @@ class TradingServiceValidationTest {
     }
 
     @Test
-    void validate_qtyZero_passes() {
+    void validate_qtyZero_fails() {
         OrderEntity order = validOrder("ORD0000000000008");
         order.setQty(0);
         ValidationResult validation = tradingService.validateOrder(Order.fromEntity(order));
-        assertTrue(validation.isSuccess());
+        assertFalse(validation.isSuccess());
+        assertTrue(validation.getMessage().contains("qty"));
     }
 
     @Test

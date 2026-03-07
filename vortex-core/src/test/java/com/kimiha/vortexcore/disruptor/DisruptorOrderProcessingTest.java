@@ -4,8 +4,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.kimiha.vortexcore.Utils;
-import com.kimiha.vortexcore.engine.MatchingEngine;
-import com.kimiha.vortexcore.engine.OrderBook;
+import com.kimiha.vortexcore.disruptor.order.OrderEvent;
+import com.kimiha.vortexcore.disruptor.order.OrderEventHandler;
+import com.kimiha.vortexcore.disruptor.order.OrderEventRouter;
+import com.kimiha.vortexcore.disruptor.order.ShardDisruptorHolder;
+import com.kimiha.vortexcore.matching.MatchingEngine;
+import com.kimiha.vortexcore.matching.OrderBook;
 import com.kimiha.vortexcore.model.domain.Order;
 import com.lmax.disruptor.RingBuffer;
 import com.lmax.disruptor.YieldingWaitStrategy;
@@ -37,7 +41,7 @@ class DisruptorOrderProcessingTest {
     @Test
     void publishEvent_asyncHandlerProcesses_orderRestsOnBook() throws InterruptedException {
         MatchingEngine matchingEngine = new MatchingEngine();
-        OrderEventHandler handler = new OrderEventHandler(matchingEngine, null, null, null);
+        OrderEventHandler handler = new OrderEventHandler(matchingEngine, null, null, null, null, false, 0.02);
         CountDownLatch latch = new CountDownLatch(1);
 
         int bufferSize = 16;
@@ -72,7 +76,7 @@ class DisruptorOrderProcessingTest {
     @Test
     void publishTwoOppositeOrders_bothProcessed_matchResult() throws InterruptedException {
         MatchingEngine matchingEngine = new MatchingEngine();
-        OrderEventHandler handler = new OrderEventHandler(matchingEngine, null, null, null);
+        OrderEventHandler handler = new OrderEventHandler(matchingEngine, null, null, null, null, false, 0.02);
         CountDownLatch latch = new CountDownLatch(2);
 
         int bufferSize = 16;
@@ -110,7 +114,7 @@ class DisruptorOrderProcessingTest {
     @Test
     void routerWithOneShard_orderProcessed_orderRestsOnBook() throws InterruptedException {
         MatchingEngine matchingEngine = new MatchingEngine();
-        OrderEventHandler handler = new OrderEventHandler(matchingEngine, null, null, null);
+        OrderEventHandler handler = new OrderEventHandler(matchingEngine, null, null, null, null, false, 0.02);
         ShardDisruptorHolder holder = new ShardDisruptorHolder(1, handler);
         OrderEventRouter router = new OrderEventRouter(holder.getShardRingBuffers());
 
@@ -147,7 +151,7 @@ class DisruptorOrderProcessingTest {
     @Test
     void routerWithMultipleShards_differentSymbols_bothOrdersOnBooks() throws InterruptedException {
         MatchingEngine matchingEngine = new MatchingEngine();
-        OrderEventHandler handler = new OrderEventHandler(matchingEngine, null, null, null);
+        OrderEventHandler handler = new OrderEventHandler(matchingEngine, null, null, null, null, false, 0.02);
         ShardDisruptorHolder holder = new ShardDisruptorHolder(4, handler);
         OrderEventRouter router = new OrderEventRouter(holder.getShardRingBuffers());
 

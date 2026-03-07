@@ -1,8 +1,9 @@
 package com.kimiha.vortexcore.service;
 
-import com.kimiha.vortexcore.engine.OrderBookChangedEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
+
+import com.kimiha.vortexcore.matching.OrderBookChangedEvent;
 
 @Component
 public class OrderBookChangedListener {
