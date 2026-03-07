@@ -2,7 +2,7 @@
   <div class="card">
     <div class="head">
       <div>
-        <div class="title">风控与性能指标</div>
+        <div class="title">风控与成交时延指标</div>
       </div>
       <div class="status">
         <span v-if="error" class="error">{{ error }}</span>

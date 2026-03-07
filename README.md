@@ -157,7 +157,7 @@ npm run dev
 - **新建文件**
   - `vortex-ui/src/services/http.ts`：统一封装 `axios` 实例与通用 `ApiResult` 类型。
   - `vortex-ui/src/components/TradingConsole.vue`：下单 / 撤单控制台 + 订单回报流时间轴。
-  - `vortex-ui/src/components/AnalyticsPanel.vue`：拉取并展示 `/api/v1/analytics/metrics` 的风控与性能指标。
+  - `vortex-ui/src/components/AnalyticsPanel.vue`：拉取并展示 `/api/v1/analytics/metrics` 的风控与成交时延指标。
 - **修改文件**
   - `vortex-ui/src/main.ts`：挂载 Element Plus，全局引入其样式。
   - `vortex-ui/src/style.css`：重置全局布局为浅色后台风格，去除默认居中卡片样式。
@@ -209,7 +209,7 @@ npm run dev
 2. **订单簿对比图**：SSE 订阅 `orderbook/{securityId}/stream`，买卖盘双向条形图  
 3. **成交分布图**：SSE 订阅 `stream/reports`，按价格桶聚合该股东成交  
 4. **下单/撤单控制台**：提交订单、撤单，并展示该股东的回报流（确认/拒绝/成交/撤单确认）  
-5. **风控与性能指标**：轮询 `analytics/metrics`，对敲拒绝数、占比、延时分桶
+5. **风控与成交时延指标**：轮询 `analytics/metrics`，对敲拒绝数、占比、延时分桶
 
 ### 推荐联调流程
 

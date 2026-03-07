@@ -1,7 +1,7 @@
 <template>
   <div class="page">
     <header class="page-header">
-      <h1 class="page-title">风控与性能指标</h1>
+      <h1 class="page-title">风控与成交时延指标</h1>
     </header>
     <div class="content">
       <AnalyticsPanel />
