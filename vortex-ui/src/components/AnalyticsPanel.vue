@@ -3,7 +3,6 @@
     <div class="head">
       <div>
         <div class="title">风控与性能指标</div>
-        <div class="sub">从后端 /api/v1/analytics/metrics 拉取的实时快照。</div>
       </div>
       <div class="status">
         <span v-if="error" class="error">{{ error }}</span>
@@ -43,7 +42,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue';
 import * as echarts from 'echarts';
-import { http, type ApiResult } from '../services/http';
+import { http } from '../services/http';
 import type { AnalyticsMetrics } from '../types/vortex';
 
 const metrics = ref<AnalyticsMetrics | null>(null);
@@ -56,20 +55,22 @@ let timer: number | null = null;
 
 async function fetchMetrics() {
   try {
-    const res = await http.get<ApiResult<AnalyticsMetrics>>('/v1/analytics/metrics');
-    if (!res.data.success) {
-      error.value = res.data.message || `请求失败（${res.data.code}）`;
+    // 后端 /api/v1/analytics/metrics 直接返回 AnalyticsMetrics，不包在 Result 里
+    const res = await http.get<AnalyticsMetrics>('/v1/analytics/metrics');
+    const body = res.data as unknown as AnalyticsMetrics;
+    if (!body || typeof body !== 'object') {
+      error.value = '响应格式异常';
       return;
     }
     error.value = '';
-    metrics.value = res.data.data;
+    metrics.value = body;
     if (metrics.value?.timestamp) {
       const d = new Date(metrics.value.timestamp);
       lastUpdateText.value = d.toLocaleTimeString('zh-CN', { hour12: false });
     }
     renderChart();
   } catch (e: any) {
-    error.value = e?.message || '网络错误';
+    error.value = e?.message || e?.response?.data?.message || '网络错误';
   }
 }
 

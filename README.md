@@ -54,14 +54,14 @@ docs/: API 接口文档与设计方案
   - REST：`axios` 访问 `/api/v1/vclient/*` 与 `/api/v1/analytics/*`
   - 实时：浏览器原生 SSE（`EventSource`）订阅订单簿与订单回报流
 
-开发环境下通过 `vite.config.ts` 代理 `/api` 到 `http://localhost:8080`，因此前端统一访问 `/api/...`，后端监听在 8080 端口即可。
+开发环境下通过 `vite.config.ts` 代理 `/api` 到 `http://localhost:8081`，因此前端统一访问 `/api/...`，后端默认监听在 8081 端口（可在 `vortex-core` 的 `application.yml` 中修改 `server.port`）。
 
 ### 2. 启动顺序
 
 1. **启动后端**
    - 在 `vortex-core` 目录执行：
      - `mvn spring-boot:run`
-   - 确认后端启动在 `http://localhost:8080`，并暴露以下接口（详见 `docs/api_spec.md`）：
+   - 确认后端启动在 `http://localhost:8081`（或你配置的端口），并暴露以下接口（详见 `docs/api_spec.md`）：
      - `/api/v1/vclient/orders`
      - `/api/v1/vclient/orders/cancel`
      - `/api/v1/vclient/stream/reports`
@@ -72,7 +72,7 @@ docs/: API 接口文档与设计方案
    - 在 `vortex-ui` 目录执行：
      - 首次：`npm install`
      - 之后：`npm run dev`
-   - 浏览器访问 Vite 提示的地址（默认为 `http://localhost:5173`）。
+   - 浏览器访问 Vite 提示的地址（默认为 `http://localhost:5173`），进入交易看板。
 
 ### 3. 页面布局与模块说明
 
@@ -86,6 +86,7 @@ docs/: API 接口文档与设计方案
      - 订阅订单簿 SSE（买卖盘图）
      - 过滤成交分布图与订单回报
    - **深度 `depth`**：订单簿展示的 `TopN` 档位。
+   - **切换**：在两组股东号/股票代码间切换（两组均持久化到本地）。
 
 2. **实时订单簿对比图（左上）**
    - 组件：`OrderBookCompareChart`
@@ -192,3 +193,7 @@ docs/: API 接口文档与设计方案
   - `vortex-ui/src/style.css`：重置全局布局为浅色后台风格，去除默认居中卡片样式。
   - `vortex-ui/src/types/vortex.ts`：补充订单请求、撤单请求、订单回报类型与分析指标类型定义。
   - `vortex-ui/src/views/Dashboard.vue`：在原有订单簿和成交分布图基础上，集成 `TradingConsole` 与 `AnalyticsPanel` 两个新模块。
+
+### 6. 模块分页与左侧导航（近期修改）
+
+四个功能模块已拆分为独立页面，左侧为固定导航栏，可点击切换模块。**修改位置与说明见：`docs/FRONTEND_LAYOUT_CHANGES.md`**。该文档中列出了本次布局相关的新增/修改文件及路由与菜单对应关系，便于按文件查看改动。

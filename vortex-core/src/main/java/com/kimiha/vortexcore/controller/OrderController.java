@@ -14,7 +14,6 @@ import com.kimiha.vortexcore.service.OrderService;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 
@@ -69,7 +68,7 @@ public class OrderController {
      * 连接后保持长连接，有回报时服务端推送
      * GET /api/v1/vclient/stream/reports?shareholderId=xxx
      */
-    @GetMapping(value = "/stream/reports", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @GetMapping(value = "/stream/reports", produces = "text/event-stream;charset=UTF-8")
     public Flux<OrderReportEnvelope> streamReports(@RequestParam String shareholderId) {
         return orderReportStreamService.stream(shareholderId);
     }
