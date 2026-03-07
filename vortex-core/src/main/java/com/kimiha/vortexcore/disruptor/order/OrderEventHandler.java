@@ -9,6 +9,7 @@ import com.kimiha.vortexcore.matching.MatchingEngine;
 import com.kimiha.vortexcore.matching.OrderBook;
 import com.kimiha.vortexcore.matching.OrderBookChangedEvent;
 import com.kimiha.vortexcore.matching.TradeResult;
+import com.kimiha.vortexcore.model.AnalyticsEvent;
 import com.kimiha.vortexcore.model.entity.CancellationEntity;
 import com.kimiha.vortexcore.model.OrderStatus;
 import com.kimiha.vortexcore.model.domain.Order;
@@ -84,6 +85,9 @@ public class OrderEventHandler implements EventHandler<OrderEvent> {
             if (persistenceEventProducer != null) {
                 persistenceEventProducer.publish(PersistenceEventType.ORDER_REJECT, reject);
             }
+            if (eventPublisher != null) {
+                eventPublisher.publishEvent(AnalyticsEvent.orderRejected(reject.rejectCode()));
+            }
             return;
         }
          /** 价格偏离检测  */
@@ -104,6 +108,9 @@ public class OrderEventHandler implements EventHandler<OrderEvent> {
                     if (persistenceEventProducer != null) {
                         persistenceEventProducer.publish(PersistenceEventType.ORDER_REJECT, reject);
                     }
+                    if (eventPublisher != null) {
+                        eventPublisher.publishEvent(AnalyticsEvent.orderRejected(reject.rejectCode()));
+                    }
                     return;
                 }
             }
@@ -121,6 +128,9 @@ public class OrderEventHandler implements EventHandler<OrderEvent> {
             }
             if (persistenceEventProducer != null) {
                 persistenceEventProducer.publish(PersistenceEventType.ORDER_REJECT, reject);
+            }
+            if (eventPublisher != null) {
+                eventPublisher.publishEvent(AnalyticsEvent.orderRejected(reject.rejectCode()));
             }
             return;
         }
@@ -141,6 +151,9 @@ public class OrderEventHandler implements EventHandler<OrderEvent> {
         }
         if (persistenceEventProducer != null) {
             persistenceEventProducer.publish(PersistenceEventType.ORDER_ACCEPTED, Order.copySnapshot(order));
+        }
+        if (eventPublisher != null) {
+            eventPublisher.publishEvent(AnalyticsEvent.orderAccepted(order.getClOrderId(), order.getCreateTimeEpochMs()));
         }
 
         int takerOriginalQty = order.getQty();
@@ -171,6 +184,13 @@ public class OrderEventHandler implements EventHandler<OrderEvent> {
                     TradePersistencePayload payload = new TradePersistencePayload(execId, tradeTimeEpochMs, order.getMarket(), tr,
                             order.getSide(), order.getShareholderId());
                     persistenceEventProducer.publish(PersistenceEventType.TRADE, payload);
+                }
+                if (eventPublisher != null) {
+                    eventPublisher.publishEvent(AnalyticsEvent.trade(
+                            tradeTimeEpochMs,
+                            tr.takerClOrderId(),
+                            tr.makerClOrderId()
+                    ));
                 }
             }
             if (persistenceEventProducer != null) {

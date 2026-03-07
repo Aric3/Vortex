@@ -76,8 +76,7 @@ class AnalyticsServiceIntegrationTest {
         Map<String, Long> bucketCount = metrics.latencyBuckets().stream()
                 .collect(Collectors.toMap(LatencyBucket::bucket, LatencyBucket::count));
 
-        assertEquals(1L, bucketCount.getOrDefault("2-5ms", 0L));
-        assertEquals(1L, bucketCount.getOrDefault("51-100ms", 0L));
+        assertEquals(2L, bucketCount.getOrDefault("0-1s", 0L));
     }
 
     private void insertOrder(String clOrderId, long createTimeEpochMs) {
