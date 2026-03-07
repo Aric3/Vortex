@@ -102,7 +102,7 @@ function connect() {
   const path = `/v1/vclient/orderbook/${encodeURIComponent(sid)}/stream?depth=${encodeURIComponent(String(depth))}`;
   es = createSSE(path);
   es.onopen = () => (status.value = "已连接（实时更新）");
-  es.onerror = () => (status.value = "连接异常（自动重连中）");
+  es.onerror = () => (status.value = "连接异常（请确认后端已启动且已点击「切换」）");
   es.onmessage = (evt) => {
     const obj = safeJsonParse<OrderBookSnapshot>(evt.data);
     if (obj) render(obj);

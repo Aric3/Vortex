@@ -2,7 +2,7 @@
   <div class="card">
     <div class="head">
       <div>
-        <div class="title">风控与性能指标</div>
+        <div class="title">风控与成交时延指标</div>
       </div>
       <div class="status">
         <span v-if="error" class="error">{{ error }}</span>
@@ -42,7 +42,8 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue';
 import * as echarts from 'echarts';
-import { http, type ApiResult } from '../services/http';
+import type { ApiResult } from '../services/http';
+import { createSSE, safeJsonParse } from '../services/sse';
 import type { AnalyticsMetrics } from '../types/vortex';
 
 const metrics = ref<AnalyticsMetrics | null>(null);
@@ -51,25 +52,39 @@ const lastUpdateText = ref('');
 
 const chartEl = ref<HTMLDivElement | null>(null);
 let chart: echarts.ECharts | null = null;
-let timer: number | null = null;
+let es: EventSource | null = null;
 
-async function fetchMetrics() {
-  try {
-    const res = await http.get<ApiResult<AnalyticsMetrics>>('/v1/analytics/metrics');
-    if (!res.data.success) {
-      error.value = res.data.message || `请求失败（${res.data.code}）`;
-      return;
-    }
-    error.value = '';
-    metrics.value = res.data.data;
-    if (metrics.value?.timestamp) {
-      const d = new Date(metrics.value.timestamp);
-      lastUpdateText.value = d.toLocaleTimeString('zh-CN', { hour12: false });
-    }
-    renderChart();
-  } catch (e: any) {
-    error.value = e?.message || '网络错误';
+function applyMetrics(body: AnalyticsMetrics) {
+  metrics.value = body;
+  if (body?.timestamp) {
+    const d = new Date(body.timestamp);
+    lastUpdateText.value = d.toLocaleTimeString('zh-CN', { hour12: false });
   }
+  renderChart();
+}
+
+function connectMetricsStream() {
+  if (es) {
+    try { es.close(); } catch {}
+    es = null;
+  }
+
+  error.value = '';
+  es = createSSE('/v1/analytics/metrics/stream');
+  es.onopen = () => {
+    error.value = '';
+  };
+  es.onerror = () => {
+    error.value = '指标流连接异常，请确认后端已启动（端口 8080）';
+  };
+  es.onmessage = (evt) => {
+    const raw = typeof evt.data === 'string' ? evt.data : '';
+    if (!raw) return;
+    const res = safeJsonParse<ApiResult<AnalyticsMetrics>>(raw);
+    if (res?.success && res.data) {
+      applyMetrics(res.data);
+    }
+  };
 }
 
 function renderChart() {
@@ -79,7 +94,7 @@ function renderChart() {
   const y = buckets.map((b) => b.count);
 
   const option: echarts.EChartsOption = {
-    grid: { left: 50, right: 10, top: 20, bottom: 45, containLabel: true },
+    grid: { left: 50, right: 10, top: 44, bottom: 50, containLabel: true },
     tooltip: {
       trigger: 'axis',
       axisPointer: { type: 'shadow' },
@@ -113,15 +128,14 @@ onMounted(() => {
   if (chartEl.value) {
     chart = echarts.init(chartEl.value);
   }
-  fetchMetrics();
-  timer = window.setInterval(fetchMetrics, 2000);
+  connectMetricsStream();
   window.addEventListener('resize', onResize);
 });
 
 onBeforeUnmount(() => {
-  if (timer !== null) {
-    window.clearInterval(timer);
-    timer = null;
+  if (es) {
+    try { es.close(); } catch {}
+    es = null;
   }
   window.removeEventListener('resize', onResize);
   if (chart) {
@@ -186,7 +200,7 @@ onBeforeUnmount(() => {
 }
 
 .chart-title {
-  margin: 6px 0;
+  margin: 6px 0 10px;
   font-size: 13px;
   color: #374151;
 }
@@ -194,6 +208,7 @@ onBeforeUnmount(() => {
 .chart {
   width: 100%;
   height: 260px;
+  margin-top: 4px;
 }
 </style>
 

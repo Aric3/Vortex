@@ -99,10 +99,18 @@ function sideToText(side: string | undefined): string {
   return side === "B" ? "买" : side === "S" ? "卖" : "";
 }
 
-function timeText(ts: number | undefined): string {
-  if (!ts) return "";
+function toTimeMs(t: number | string | undefined): number {
+  if (t == null) return 0;
+  if (typeof t === "number") return t;
+  const d = new Date(t);
+  return isNaN(d.getTime()) ? 0 : d.getTime();
+}
+
+function timeText(ts: number | string | undefined): string {
+  const ms = typeof ts === "number" ? ts : toTimeMs(ts);
+  if (!ms) return "";
   try {
-    return new Date(ts).toLocaleTimeString("zh-CN", { hour12: false });
+    return new Date(ms).toLocaleTimeString("zh-CN", { hour12: false });
   } catch {
     return "";
   }
@@ -110,16 +118,19 @@ function timeText(ts: number | undefined): string {
 
 async function refresh() {
   const sh = (props.shareholderId || "").trim();
-  if (!sh) return; // 没填就不拉取
+  if (!sh || sh.length !== 10) return;
   loading.value = true;
   try {
-    const res = await http.get<ApiResult<any>>("/v1/vclient/orders");
+    const res = await http.get<ApiResult<{ content?: any[]; totalElements?: number }>>(
+      `/v1/vclient/orders/history?shareholderId=${encodeURIComponent(sh)}&page=0&size=100`
+    );
     if (!res.data?.success) {
       ElMessage.error(`查询订单失败：${res.data?.message || res.data?.code}`);
       return;
     }
-    const arr = Array.isArray(res.data?.data) ? res.data.data : (res.data?.data?.items || []);
-    dbOrders.value = (Array.isArray(arr) ? arr : []).filter(isMatch);
+    const content = res.data?.data?.content;
+    const arr = Array.isArray(content) ? content : [];
+    dbOrders.value = arr.filter(isMatch);
   } catch (e: any) {
     ElMessage.error(`查询订单异常：${e?.message || "网络错误"}`);
   } finally {
@@ -139,16 +150,18 @@ const rows = computed(() => {
     ...o,
     _source: "db",
     _status: normalizeStatus(o.status || "IN_BOOK"),
-    _updatedAt: o.updatedAt || o.createTime || o.createdAt || Date.now(),
+    _updatedAt: toTimeMs(o.updatedTime ?? o.createTime ?? o.updatedAt) || Date.now(),
   }));
 
   // merge by clOrderId (db wins)
   const map = new Map<string, AnyOrder>();
   for (const o of locals) {
-    if (o.clOrderId) map.set(String(o.clOrderId), o);
+    const ord = o as AnyOrder;
+    if (ord.clOrderId) map.set(String(ord.clOrderId), ord);
   }
   for (const o of dbs) {
-    if (o.clOrderId) map.set(String(o.clOrderId), o);
+    const ord = o as AnyOrder;
+    if (ord.clOrderId) map.set(String(ord.clOrderId), ord);
   }
 
   const merged = Array.from(map.values())
