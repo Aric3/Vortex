@@ -139,6 +139,7 @@ public class AnalyticsService {
         if (event.rejectCode() != null && event.rejectCode() == WASH_REJECT_CODE) {
             washRejects.increment();
         }
+        emitSnapshot();
     }
 
     private void handleTrade(AnalyticsEvent event) {

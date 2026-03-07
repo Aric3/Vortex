@@ -35,10 +35,10 @@ import java.util.List;
 @Component
 public class OrderEventHandler implements EventHandler<OrderEvent> {
 
-    private static final String REJECT_TEXT_WASH_TRADE = "Wash trade rejected";
-    private static final String REJECT_TEXT_DUPLICATE_CL_ORDER_ID = "Duplicate clOrderId";
-    private static final String REJECT_TEXT_CANCEL_ORDER_NOT_FOUND = "Order not found or already filled/canceled";
-    private static final String REJECT_TEXT_PRICE_DEVIATION = "Order price deviates too much from the latest market price.";
+    private static final String REJECT_TEXT_WASH_TRADE = "对敲拒绝";
+    private static final String REJECT_TEXT_DUPLICATE_CL_ORDER_ID = "重复订单号";
+    private static final String REJECT_TEXT_CANCEL_ORDER_NOT_FOUND = "订单不存在或已成交/已撤";
+    private static final String REJECT_TEXT_PRICE_DEVIATION = "订单价格偏离最新市价过大";
 
     private final MatchingEngine matchingEngine;
     private final ApplicationEventPublisher eventPublisher;

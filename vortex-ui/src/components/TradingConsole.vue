@@ -7,9 +7,6 @@
           股东号 {{ shareholderId || '（请在上方输入）' }} · 股票 {{ securityId || '（请在上方输入）' }}
         </div>
       </div>
-      <div class="status" v-if="reportStatus">
-        {{ reportStatus }}
-      </div>
     </div>
 
     <el-tabs v-model="activeTab" class="tabs" type="card">
@@ -87,7 +84,7 @@
             <el-button type="warning" :loading="submittingCancel" @click="submitCancel">
               提交撤单
             </el-button>
-            <span class="hint">撤单结果也会通过回报流 SSE 推送。</span>
+            <span class="hint">撤单结果会以右下角通知推送。</span>
           </el-form-item>
         </el-form>
       </el-tab-pane>
@@ -95,14 +92,22 @@
       <el-tab-pane label="订单状态" name="orders">
         <div class="orders-section">
           <div class="reports-head">
-            <span>订单状态（由回报流实时更新，共 {{ orderList.length }} 笔）</span>
+            <span>订单状态（共 {{ orderList.length }} 笔）</span>
             <el-button link size="small" @click="clearOrders">清空</el-button>
           </div>
-          <el-table :data="orderList" stripe size="small" max-height="320" class="order-table">
+          <el-table
+            :data="orderList"
+            stripe
+            size="small"
+            max-height="320"
+            class="order-table"
+            v-loading="orderHistoryLoading"
+            element-loading-text="加载订单历史..."
+          >
             <el-table-column prop="clOrderId" label="订单号" width="180">
               <template #default="{ row }">
-                <span class="mono">{{ row.clOrderId }}</span>
-                <el-button link type="primary" size="small" @click="copyToCancel(row.clOrderId)">复制撤单</el-button>
+                <span class="mono">{{ row.status === '已拒绝' ? '—' : row.clOrderId }}</span>
+                <el-button v-if="row.status !== '已拒绝'" link type="primary" size="small" @click="copyToCancel(row.clOrderId)">复制撤单</el-button>
               </template>
             </el-table-column>
             <el-table-column prop="market" label="市场" width="72" />
@@ -120,31 +125,7 @@
             <el-table-column prop="cumQty" label="已成交" width="72" align="right" />
             <el-table-column prop="lastUpdate" label="更新时间" width="88" />
           </el-table>
-          <el-empty v-if="!orderList.length" description="暂无订单，下单后回报流会更新此处。" class="order-empty" />
-        </div>
-      </el-tab-pane>
-
-      <el-tab-pane label="回报流" name="reports">
-        <div class="reports">
-          <div class="reports-head">
-            <span>实时订单回报（最近 {{ reports.length }} 条）</span>
-            <el-button link size="small" @click="clearReports">清空</el-button>
-          </div>
-          <el-scrollbar height="260px">
-            <el-empty v-if="!reports.length" description="暂无回报，先建立 SSE 连接并下单试试。" />
-            <el-timeline v-else class="timeline">
-              <el-timeline-item
-                v-for="item in reports"
-                :key="item.id"
-                :timestamp="item.timeText"
-                :type="item.color"
-                :hollow="true"
-              >
-                <div class="report-title">{{ item.title }}</div>
-                <div class="report-sub">{{ item.subtitle }}</div>
-              </el-timeline-item>
-            </el-timeline>
-          </el-scrollbar>
+          <el-empty v-if="!orderList.length" description="暂无订单，下单后订单状态会更新，回报以右下角通知显示。" class="order-empty" />
         </div>
       </el-tab-pane>
     </el-tabs>
@@ -156,7 +137,7 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus';
 import { useFilterStore } from '../stores/filter';
 import { http, type ApiResult } from '../services/http';
-import { createSSE, safeJsonParse } from '../services/sse';
+import { useReportNotificationsStore } from '../stores/reportNotifications';
 import type {
   CancelOrderRequest,
   OrderReportEnvelopeTyped,
@@ -170,14 +151,6 @@ const props = defineProps<{
 
 const filterStore = useFilterStore();
 
-type DisplayReport = {
-  id: string;
-  title: string;
-  subtitle: string;
-  color: 'success' | 'warning' | 'danger' | 'info';
-  timeText: string;
-};
-
 type OrderRow = {
   clOrderId: string;
   market: string;
@@ -188,13 +161,37 @@ type OrderRow = {
   status: string;
   cumQty: number;
   lastUpdate: string;
+  lastUpdateMs?: number;
 };
 
-const reports = ref<DisplayReport[]>([]);
+/** 后端订单历史分页响应 */
+type OrderHistoryPage = {
+  content: Array<{
+    clOrderId?: string;
+    market?: string;
+    securityId?: string;
+    side?: string;
+    qty?: number;
+    price?: number;
+    orderQty?: number;
+    cumQty?: number;
+    status?: string;
+    createTime?: string;
+    updatedTime?: string;
+  }>;
+  page?: number;
+  size?: number;
+  totalElements?: number;
+  totalPages?: number;
+  last?: boolean;
+};
+
 const orderList = ref<OrderRow[]>([]);
 const orderMap = new Map<string, OrderRow>();
+const orderHistoryLoading = ref(false);
+const reportNotifications = useReportNotificationsStore();
 
-const activeTab = ref<'order' | 'cancel' | 'orders' | 'reports'>('order');
+const activeTab = ref<'order' | 'cancel' | 'orders'>('order');
 
 const orderForm = reactive<OrderRequest>({
   clOrderId: '',
@@ -215,10 +212,6 @@ const cancelForm = reactive<CancelOrderRequest>({
   shareholderId: '',
 });
 
-const reportStatus = ref<string>('');
-
-let es: EventSource | null = null;
-
 const submittingOrder = ref(false);
 const submittingCancel = ref(false);
 
@@ -237,15 +230,23 @@ function syncFromProps() {
 
 syncFromProps();
 
+const lastBoundShareholderId = ref<string>('');
+
 watch(
   () => [props.shareholderId, props.securityId],
-  () => {
+  async () => {
     syncFromProps();
-    reconnectReports();
-  }
+    const sh = boundShareholderId.value;
+    if (sh !== lastBoundShareholderId.value) {
+      lastBoundShareholderId.value = sh;
+      orderMap.clear();
+      flushOrderList();
+      await loadOrderHistory(sh);
+    }
+  },
+  { immediate: true }
 );
 
-<<<<<<< HEAD
 // 下单/撤单表单中的股东号、股票代码同步回全局筛选 store，保证 SSE 订阅与下单使用同一股东号，并参与持久化
 watch(
   () => [orderForm.shareholderId, orderForm.securityId],
@@ -281,41 +282,6 @@ async function submitOrder() {
   }
   if (sid.length !== 6) {
     ElMessage.error('股票代码须为 6 位字符串。');
-=======
-function genClOrderId(prefix: string): string {
-  // API 标准：clOrderId 为 16 位字符串（建议仅使用大写字母与数字）
-  const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-  const p = (prefix || 'O').slice(0, 1).toUpperCase();
-  let body = '';
-  for (let i = 0; i < 15; i++) {
-    body += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return (p + body).slice(0, 16);
-}
-
-function isValidShareholderId(v: string): boolean {
-  return (v || '').trim().length === 10;
-}
-
-function isValidSecurityId(v: string): boolean {
-  const s = (v || '').trim();
-  return /^[0-9]{6}$/.test(s);
-}
-
-async function submitOrder() {
-  const sh = orderForm.shareholderId?.trim();
-  const sec = orderForm.securityId?.trim();
-  if (!sh || !sec) {
-    ElMessage.error('股东号与股票代码不能为空（可从顶部面板填写）。');
->>>>>>> 3663ffd12426c5c9df17863ab6d5e0b72b44216f
-    return;
-  }
-  if (!isValidShareholderId(sh)) {
-    ElMessage.error('股东号不合法：必须为 10 位字符串（例如 A000000001）。');
-    return;
-  }
-  if (!isValidSecurityId(sec)) {
-    ElMessage.error('股票代码不合法：必须为 6 位数字（例如 600030）。');
     return;
   }
   if (!orderForm.qty || orderForm.qty <= 0 || !orderForm.price || orderForm.price <= 0) {
@@ -335,12 +301,6 @@ async function submitOrder() {
       return;
     }
     ElMessage.success(`下单已提交，clOrderId = ${res.data.data?.clOrderId || payload.clOrderId}`);
-<<<<<<< HEAD
-=======
-    emit('order-submitted', payload);
-
-    reconnectReports();
->>>>>>> 3663ffd12426c5c9df17863ab6d5e0b72b44216f
   } catch (e: any) {
     ElMessage.error(`下单异常：${e?.message || '网络错误'}`);
   } finally {
@@ -349,7 +309,6 @@ async function submitOrder() {
 }
 
 async function submitCancel() {
-<<<<<<< HEAD
   const sh = cancelForm.shareholderId?.trim() ?? '';
   const sid = cancelForm.securityId?.trim() ?? '';
   const orig = cancelForm.origClOrderId?.trim() ?? '';
@@ -367,25 +326,6 @@ async function submitCancel() {
   }
   if (orig.length !== 16) {
     ElMessage.error('原订单号须为 16 位字符串（可从订单状态表复制）。');
-=======
-  const sh = cancelForm.shareholderId?.trim();
-  const sec = cancelForm.securityId?.trim();
-  const orig = cancelForm.origClOrderId?.trim();
-  if (!sh || !sec || !orig) {
-    ElMessage.error('股东号、股票代码与原订单号不能为空。');
-    return;
-  }
-  if (!isValidShareholderId(sh)) {
-    ElMessage.error('股东号不合法：必须为 10 位字符串（例如 A000000001）。');
-    return;
-  }
-  if (!isValidSecurityId(sec)) {
-    ElMessage.error('股票代码不合法：必须为 6 位数字（例如 600030）。');
-    return;
-  }
-  if (orig.length !== 16) {
-    ElMessage.error('原订单号 origClOrderId 不合法：必须为 16 位字符串。');
->>>>>>> 3663ffd12426c5c9df17863ab6d5e0b72b44216f
     return;
   }
 
@@ -410,12 +350,13 @@ async function submitCancel() {
 
 function flushOrderList() {
   orderList.value = Array.from(orderMap.values()).sort(
-    (a, b) => (b.lastUpdate > a.lastUpdate ? 1 : -1)
+    (a, b) => (b.lastUpdateMs ?? 0) - (a.lastUpdateMs ?? 0)
   );
 }
 
 function upsertOrder(clOrderId: string, patch: Partial<OrderRow>) {
-  const timeText = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+  const now = Date.now();
+  const timeText = new Date(now).toLocaleTimeString('zh-CN', { hour12: false });
   let row = orderMap.get(clOrderId);
   if (!row) {
     row = {
@@ -428,20 +369,73 @@ function upsertOrder(clOrderId: string, patch: Partial<OrderRow>) {
       status: patch.status ?? '已报',
       cumQty: patch.cumQty ?? 0,
       lastUpdate: timeText,
+      lastUpdateMs: now,
     };
     orderMap.set(clOrderId, row);
   }
-  Object.assign(row, patch, { lastUpdate: timeText });
+  Object.assign(row, patch, { lastUpdate: timeText, lastUpdateMs: now });
   flushOrderList();
-}
-
-function clearReports() {
-  reports.value = [];
 }
 
 function clearOrders() {
   orderMap.clear();
   flushOrderList();
+}
+/** 后端状态枚举转展示文案 */
+function orderStatusToDisplay(s: string | undefined): string {
+  if (!s) return '--';
+  const u = String(s);
+  if (u === 'New') return '在簿';
+  if (u === 'PartiallyFilled') return '部分成交';
+  if (u === 'Filled') return '已成';
+  if (u === 'Canceled') return '已撤';
+  if (u === 'Rejected') return '已拒绝';
+  return u;
+}
+/** 从接口时间字符串解析毫秒时间戳（支持 ISO 或 "yyyy-MM-dd HH:mm:ss"） */
+function parseTimeMs(t: string | undefined): number {
+  if (!t) return 0;
+  const d = new Date(t);
+  return isNaN(d.getTime()) ? 0 : d.getTime();
+}
+/** 按股东号加载订单历史并写入 orderMap，刷新后/切换股东号后订单状态可保留 */
+async function loadOrderHistory(shareholderId: string) {
+  const sh = (shareholderId || '').trim();
+  if (!sh || sh.length !== 10) return;
+  orderHistoryLoading.value = true;
+  try {
+    const res = await http.get<ApiResult<OrderHistoryPage>>(
+      `/v1/vclient/orders/history?shareholderId=${encodeURIComponent(sh)}&page=0&size=100`
+    );
+    const page = res.data?.data;
+    const list = page?.content ?? [];
+    for (const o of list) {
+      const cid = o.clOrderId;
+      if (!cid) continue;
+      const updatedTime = o.updatedTime ?? o.createTime;
+      const lastUpdateMs = parseTimeMs(updatedTime);
+      const timeText = lastUpdateMs
+        ? new Date(lastUpdateMs).toLocaleTimeString('zh-CN', { hour12: false })
+        : '';
+      orderMap.set(cid, {
+        clOrderId: cid,
+        market: o.market ?? '',
+        securityId: o.securityId ?? '',
+        side: o.side ?? '',
+        qty: Number(o.qty) ?? 0,
+        price: Number(o.price) ?? 0,
+        status: orderStatusToDisplay(o.status),
+        cumQty: Number(o.cumQty) ?? 0,
+        lastUpdate: timeText,
+        lastUpdateMs,
+      });
+    }
+    flushOrderList();
+  } catch (e: any) {
+    ElMessage.error(`加载订单历史失败：${e?.message || '网络错误'}`);
+  } finally {
+    orderHistoryLoading.value = false;
+  }
 }
 
 function copyToCancel(clOrderId: string) {
@@ -464,30 +458,16 @@ function statusTagType(status: string): 'success' | 'warning' | 'danger' | 'info
 
 const REPORT_TYPES = ['ORDER_CONFIRM', 'ORDER_REJECT', 'ORDER_EXECUTION', 'CANCEL_CONFIRM', 'CANCEL_REJECT', 'HEARTBEAT'] as const;
 
-function pushReport(env: OrderReportEnvelopeTyped<any>) {
-<<<<<<< HEAD
+/** 将回报应用到订单状态列表（与 Layout 右下角通知同源，由 store 推送后在此同步） */
+function applyReportToOrderMap(env: OrderReportEnvelopeTyped<any>) {
   const reportType = typeof env.reportType === 'string'
     ? env.reportType
     : REPORT_TYPES[env.reportType as number] ?? String(env.reportType);
   if (reportType === 'HEARTBEAT') return;
-
-=======
-  if (env?.reportType === 'HEARTBEAT') return;
->>>>>>> 3663ffd12426c5c9df17863ab6d5e0b72b44216f
-  const now = new Date();
-  const timeText = now.toLocaleTimeString('zh-CN', { hour12: false });
-
-  let title = reportType;
-  let subtitle = '';
-  let color: DisplayReport['color'] = 'info';
-
   const d: any = env.data || {};
 
   switch (reportType) {
     case 'ORDER_CONFIRM':
-      title = '订单确认';
-      subtitle = `clOrderId=${d.clOrderId}, ${d.side === 'B' ? '买' : '卖'} ${d.securityId} 数量 ${d.qty} 价格 ${d.price}`;
-      color = 'success';
       if (d.clOrderId) {
         upsertOrder(d.clOrderId, {
           market: d.market,
@@ -501,10 +481,7 @@ function pushReport(env: OrderReportEnvelopeTyped<any>) {
       }
       break;
     case 'ORDER_REJECT':
-      title = '订单拒绝';
-      subtitle = `clOrderId=${d.clOrderId}, 原因：${d.rejectText || d.rejectCode}`;
-      color = 'danger';
-      if (d.clOrderId) {
+      if (d.clOrderId && Number(d.rejectCode) !== 4001) {
         upsertOrder(d.clOrderId, {
           market: d.market,
           securityId: d.securityId,
@@ -516,9 +493,6 @@ function pushReport(env: OrderReportEnvelopeTyped<any>) {
       }
       break;
     case 'ORDER_EXECUTION':
-      title = '成交';
-      subtitle = `clOrderId=${d.clOrderId}, execId=${d.execId}, 数量 ${d.execQty} 价格 ${d.execPrice}`;
-      color = 'success';
       if (d.clOrderId) {
         const row = orderMap.get(d.clOrderId);
         const add = Number(d.execQty) || 0;
@@ -536,89 +510,32 @@ function pushReport(env: OrderReportEnvelopeTyped<any>) {
       }
       break;
     case 'CANCEL_CONFIRM':
-      title = '撤单确认';
-      subtitle = `origClOrderId=${d.origClOrderId}, 撤单数量 ${d.canceledQty}, 累计成交 ${d.cumQty}`;
-      color = 'warning';
-      if (d.origClOrderId) {
-        upsertOrder(d.origClOrderId, { status: '已撤' });
-      }
+      if (d.origClOrderId) upsertOrder(d.origClOrderId, { status: '已撤' });
       break;
     case 'CANCEL_REJECT':
-      title = '撤单拒绝';
-      subtitle = `origClOrderId=${d.origClOrderId}, 原因：${d.rejectText || d.rejectCode}`;
-      color = 'danger';
-      if (d.origClOrderId) {
-        upsertOrder(d.origClOrderId, { status: '撤单拒绝' });
-      }
+      if (d.origClOrderId) upsertOrder(d.origClOrderId, { status: '撤单拒绝' });
       break;
     default:
-      subtitle = JSON.stringify(d);
-      color = 'info';
+      break;
   }
-
-  const item: DisplayReport = {
-    id: `${reportType}-${d.clOrderId || d.execId || now.getTime()}`,
-    title,
-    subtitle,
-    color,
-    timeText,
-  };
-
-  reports.value.unshift(item);
-  if (reports.value.length > 200) reports.value.splice(200);
 }
 
-function cleanupReportsStream() {
-  if (es) {
-    try {
-      es.close();
-    } catch {
-      // ignore
+const processedReportIds = new Set<string>();
+watch(
+  () => reportNotifications.notifications,
+  (list) => {
+    const sh = boundShareholderId.value;
+    if (!sh) return;
+    for (const item of list) {
+      if (item.shareholderId !== sh || processedReportIds.has(item.id)) continue;
+      processedReportIds.add(item.id);
+      applyReportToOrderMap(item.env);
     }
-    es = null;
-  }
-}
-
-function reconnectReports() {
-  cleanupReportsStream();
-  const sh = boundShareholderId.value;
-  if (!sh) {
-    reportStatus.value = '未连接：请先填写股东号。';
-    return;
-  }
-  reportStatus.value = '回报流连接中...';
-  const path = `/v1/vclient/stream/reports?shareholderId=${encodeURIComponent(sh)}`;
-  es = createSSE(path);
-  es.onopen = () => {
-    reportStatus.value = '回报流已连接';
-  };
-  es.onerror = () => {
-    reportStatus.value = '回报流连接异常，准备重试...';
-  };
-  es.onmessage = (evt) => {
-<<<<<<< HEAD
-    const raw = typeof evt.data === 'string' ? evt.data : '';
-    const lines = raw.split(/\r?\n/).map((s) => s.replace(/^\s*data:\s*/, '').trim()).filter(Boolean);
-    for (const line of lines) {
-      const env = safeJsonParse<OrderReportEnvelopeTyped<any>>(line);
-      if (env && env.reportType != null) pushReport(env);
-    }
-=======
-    const env = safeJsonParse<OrderReportEnvelopeTyped<any>>(evt.data);
-    if (!env) return;
-    if (env.reportType === 'HEARTBEAT') return;
-    emit('report', env);
-    pushReport(env);
->>>>>>> 3663ffd12426c5c9df17863ab6d5e0b72b44216f
-  };
-}
-
-onMounted(() => {
-  reconnectReports();
-});
-
-onBeforeUnmount(() => {
-  cleanupReportsStream();
+  },
+  { deep: true }
+);
+watch(boundShareholderId, () => {
+  processedReportIds.clear();
 });
 </script>
 
@@ -668,31 +585,12 @@ onBeforeUnmount(() => {
   color: #6b7280;
 }
 
-.reports {
-  padding-top: 8px;
-}
-
 .reports-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   font-size: 13px;
   margin-bottom: 6px;
-}
-
-.timeline {
-  padding-left: 4px;
-}
-
-.report-title {
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.report-sub {
-  margin-top: 2px;
-  font-size: 12px;
-  color: #6b7280;
 }
 
 .orders-section {

@@ -70,7 +70,9 @@ async function fetchMetrics() {
     }
     renderChart();
   } catch (e: any) {
-    error.value = e?.message || e?.response?.data?.message || '网络错误';
+    const status = e?.response?.status;
+    const msg = e?.response?.data?.message || e?.message;
+    error.value = status === 500 || !status ? (msg || '请确认后端已启动（端口 8081）') : (msg || '网络错误');
   }
 }
 
@@ -81,7 +83,7 @@ function renderChart() {
   const y = buckets.map((b) => b.count);
 
   const option: echarts.EChartsOption = {
-    grid: { left: 50, right: 10, top: 20, bottom: 45, containLabel: true },
+    grid: { left: 50, right: 10, top: 44, bottom: 50, containLabel: true },
     tooltip: {
       trigger: 'axis',
       axisPointer: { type: 'shadow' },
@@ -188,7 +190,7 @@ onBeforeUnmount(() => {
 }
 
 .chart-title {
-  margin: 6px 0;
+  margin: 6px 0 10px;
   font-size: 13px;
   color: #374151;
 }
@@ -196,6 +198,7 @@ onBeforeUnmount(() => {
 .chart {
   width: 100%;
   height: 260px;
+  margin-top: 4px;
 }
 </style>
 

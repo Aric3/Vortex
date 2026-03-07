@@ -115,34 +115,45 @@ function connect() {
   es = createSSE(path);
 
   es.onopen = () => (status.value = "已连接（等待成交回报）");
-  es.onerror = () => (status.value = "连接异常（自动重连中）");
+  es.onerror = () => (status.value = "连接异常（请确认后端已启动且已点击「切换」）");
   es.onmessage = (evt) => {
-    const env = safeJsonParse<OrderReportEnvelope>(evt.data);
-    if (!env) return;
+    const raw = typeof evt.data === "string" ? evt.data : "";
+    const lines = raw.split(/\r?\n/).map((s) => s.replace(/^\s*data:\s*/, "").trim()).filter(Boolean);
+    for (const line of lines) {
+      const env = safeJsonParse<OrderReportEnvelope & { reportType?: string | number }>(line);
+      if (!env || env.reportType == null) continue;
 
-    if (env.reportType !== "ORDER_EXECUTION") return;
+      const reportType = typeof env.reportType === "string"
+        ? env.reportType
+        : ["ORDER_CONFIRM", "ORDER_REJECT", "ORDER_EXECUTION", "CANCEL_CONFIRM", "CANCEL_REJECT", "HEARTBEAT"][env.reportType as number] ?? String(env.reportType);
+      if (reportType !== "ORDER_EXECUTION") continue;
 
-    const d = env.data as any;
-    const ex: ExecutionReport = {
-      execId: d.execId,
-      execQty: Number(d.execQty),
-      execPrice: Number(d.execPrice),
-      securityId: d.securityId,
-      market: d.market,
-      clOrderId: d.clOrderId,
-      shareholderId: d.shareholderId,
-      ts: d.ts ?? Date.now(),
-    };
+      const d = env.data as any;
+      const ex: ExecutionReport = {
+        execId: d.execId,
+        execQty: Number(d.execQty),
+        execPrice: Number(d.execPrice),
+        securityId: d.securityId,
+        market: d.market,
+        clOrderId: d.clOrderId,
+        shareholderId: d.shareholderId,
+        ts: d.ts ?? Date.now(),
+      };
 
-    const sid = props.securityId?.trim();
-    if (sid && ex.securityId && String(ex.securityId) !== sid) return;
-
-    if (Number.isFinite(ex.execQty) && Number.isFinite(ex.execPrice)) {
-      executions.value.push(ex);
-      if (executions.value.length > maxTrades.value) {
-        executions.value.splice(0, executions.value.length - maxTrades.value);
+      const sid = props.securityId?.trim();
+      if (sid && ex.securityId) {
+        const normalizedEx = String(ex.securityId).replace(/\.(SH|SZ|BJ)$/i, "");
+        const normalizedSid = sid.replace(/\.(SH|SZ|BJ)$/i, "");
+        if (normalizedEx !== normalizedSid) continue;
       }
-      render();
+
+      if (Number.isFinite(ex.execQty) && Number.isFinite(ex.execPrice)) {
+        executions.value.push(ex);
+        if (executions.value.length > maxTrades.value) {
+          executions.value.splice(0, executions.value.length - maxTrades.value);
+        }
+        render();
+      }
     }
   };
 }

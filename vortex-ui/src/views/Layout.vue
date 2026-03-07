@@ -28,7 +28,20 @@
             <el-input v-model.trim="filter.editShareholderId" placeholder="10位，如 A001000000" maxlength="10" show-word-limit />
           </el-form-item>
           <el-form-item label="股票代码">
-            <el-input v-model.trim="filter.editSecurityId" placeholder="6位，如 600030" maxlength="6" show-word-limit />
+            <el-select
+              v-model="filter.editSecurityId"
+              placeholder="请选择股票"
+              filterable
+              clearable
+              style="width: 100%"
+            >
+              <el-option
+                v-for="code in symbolOptions"
+                :key="code"
+                :label="code"
+                :value="code"
+              />
+            </el-select>
           </el-form-item>
           <el-form-item label="深度">
             <el-input-number v-model="filter.depth" :min="1" :max="50" :step="1" style="width: 100%" />
@@ -37,6 +50,10 @@
             <el-button type="primary" plain size="small" class="switch-btn" @click="filter.applyEdit">
               切换
             </el-button>
+          </el-form-item>
+          <el-form-item v-if="filter.securityId" class="realtime-price-row">
+            <span class="realtime-label">实时价</span>
+            <span class="realtime-value">{{ lastPrice != null ? lastPrice : '--' }}</span>
           </el-form-item>
         </el-form>
       </div>
@@ -51,18 +68,125 @@
         </transition>
       </router-view>
     </main>
+
+    <!-- 右下角回报通知：订单状态变化时动态弹出 -->
+    <div class="report-notifications" v-if="reportNotifications.notifications.length">
+      <div
+        v-for="item in reportNotifications.notifications"
+        :key="item.id"
+        class="report-toast"
+        :class="item.color"
+      >
+        <div class="report-toast-header">
+          <span class="report-toast-title">{{ item.title }}</span>
+          <span class="report-toast-time">{{ item.timeText }}</span>
+          <button type="button" class="report-toast-close" @click="reportNotifications.remove(item.id)" aria-label="关闭">×</button>
+        </div>
+        <div class="report-toast-sub">{{ item.subtitle }}</div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, onMounted, watch, onBeforeUnmount } from 'vue';
 import { useRoute } from 'vue-router';
 import { useFilterStore } from '../stores/filter';
+import { useReportNotificationsStore } from '../stores/reportNotifications';
+import { http, type ApiResult } from '../services/http';
+import { createSSE, safeJsonParse } from '../services/sse';
 
 const route = useRoute();
 const filter = useFilterStore();
+const reportNotifications = useReportNotificationsStore();
 
 const activeMenu = computed(() => route.path || '/orderbook');
+
+const symbolOptions = ref<string[]>([]);
+const lastPrice = ref<number | null>(null);
+let pollTimer: ReturnType<typeof setInterval> | null = null;
+let reportEs: EventSource | null = null;
+
+async function fetchSymbols() {
+  try {
+    const res = await http.get<ApiResult<string[]>>('/v1/vclient/quote/symbols');
+    if (res.data?.success && Array.isArray(res.data.data)) {
+      symbolOptions.value = res.data.data;
+    }
+  } catch {
+    symbolOptions.value = [];
+  }
+}
+
+async function fetchTick() {
+  const sid = filter.securityId;
+  if (!sid) return;
+  try {
+    const res = await http.get<ApiResult<{ lastPrice?: number }>>(`/v1/vclient/quote/tick/${encodeURIComponent(sid)}`);
+    if (res.data?.success && res.data.data != null && typeof res.data.data.lastPrice === 'number') {
+      lastPrice.value = res.data.data.lastPrice;
+    }
+  } catch {
+    lastPrice.value = null;
+  }
+}
+
+function startPolling() {
+  stopPolling();
+  if (!filter.securityId) return;
+  fetchTick();
+  pollTimer = setInterval(fetchTick, 2000);
+}
+
+function stopPolling() {
+  if (pollTimer) {
+    clearInterval(pollTimer);
+    pollTimer = null;
+  }
+  lastPrice.value = null;
+}
+
+function connectReportStream() {
+  if (reportEs) {
+    try { reportEs.close(); } catch {}
+    reportEs = null;
+  }
+  const sh = (filter.shareholderId || '').trim();
+  if (!sh || sh.length !== 10) return;
+  const path = `/v1/vclient/stream/reports?shareholderId=${encodeURIComponent(sh)}`;
+  reportEs = createSSE(path);
+  reportEs.onmessage = (evt) => {
+    const raw = typeof evt.data === 'string' ? evt.data : '';
+    const lines = raw.split(/\r?\n/).map((s) => s.replace(/^\s*data:\s*/, '').trim()).filter(Boolean);
+    for (const line of lines) {
+      const env = safeJsonParse<any>(line);
+      if (env && env.reportType != null) reportNotifications.addReport(env);
+    }
+  };
+}
+
+onMounted(() => {
+  fetchSymbols();
+  if (filter.securityId) startPolling();
+  connectReportStream();
+});
+
+watch(() => filter.shareholderId, () => {
+  connectReportStream();
+});
+
+watch(() => filter.securityId, (sid) => {
+  if (sid) startPolling();
+  else stopPolling();
+});
+
+onBeforeUnmount(() => {
+  stopPolling();
+  if (reportEs) {
+    try { reportEs.close(); } catch {}
+    reportEs = null;
+  }
+});
 </script>
 
 <style scoped>
@@ -125,6 +249,27 @@ const activeMenu = computed(() => route.path || '/orderbook');
   width: 100%;
 }
 
+.realtime-price-row {
+  margin-bottom: 0;
+}
+
+.realtime-price-row :deep(.el-form-item__content) {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.realtime-label {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.realtime-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: #111827;
+}
+
 .main {
   flex: 1;
   overflow: auto;
@@ -138,5 +283,66 @@ const activeMenu = computed(() => route.path || '/orderbook');
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
+}
+
+/* 右下角回报通知 */
+.report-notifications {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 360px;
+  max-height: 70vh;
+  overflow-y: auto;
+  pointer-events: none;
+}
+.report-notifications .report-toast {
+  pointer-events: auto;
+  padding: 10px 12px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  background: #fff;
+  border-left: 4px solid #909399;
+}
+.report-notifications .report-toast.success { border-left-color: #67c23a; }
+.report-notifications .report-toast.warning { border-left-color: #e6a23c; }
+.report-notifications .report-toast.danger { border-left-color: #f56c6c; }
+.report-notifications .report-toast.info { border-left-color: #409eff; }
+.report-toast-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.report-toast-title {
+  font-weight: 600;
+  font-size: 13px;
+  color: #111827;
+}
+.report-toast-time {
+  font-size: 11px;
+  color: #9ca3af;
+  margin-left: auto;
+}
+.report-toast-close {
+  margin-left: 4px;
+  padding: 0 4px;
+  border: none;
+  background: none;
+  font-size: 16px;
+  line-height: 1;
+  color: #9ca3af;
+  cursor: pointer;
+}
+.report-toast-close:hover {
+  color: #374151;
+}
+.report-toast-sub {
+  font-size: 12px;
+  color: #6b7280;
+  line-height: 1.4;
 }
 </style>

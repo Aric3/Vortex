@@ -16,7 +16,9 @@ import org.springframework.data.domain.Page;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Flux;
 
 @RestController
@@ -41,10 +43,14 @@ public class OrderController {
 
     @GetMapping("/orders")
     public Result getAllOrders() {
-        List<OrderResponse> all = orderService.findAll().stream()
-                .map(OrderResponse::fromEntity)
-                .collect(Collectors.toList());
-        return Result.success(all, "Orders retrieved successfully");
+        try {
+            List<OrderResponse> all = orderService.findAll().stream()
+                    .map(OrderResponse::fromEntity)
+                    .collect(Collectors.toList());
+            return Result.success(all, "Orders retrieved successfully");
+        } catch (Exception e) {
+            return Result.fail(ResultCode.SYSTEM_ERROR, "Orders query failed: " + (e.getMessage() != null ? e.getMessage() : "unknown"));
+        }
     }
 
     @GetMapping("/orders/history")
@@ -99,7 +105,10 @@ public class OrderController {
      * GET /api/v1/vclient/stream/reports?shareholderId=xxx
      */
     @GetMapping(value = "/stream/reports", produces = "text/event-stream;charset=UTF-8")
-    public Flux<OrderReportEnvelope> streamReports(@RequestParam String shareholderId) {
-        return orderReportStreamService.stream(shareholderId);
+    public Flux<OrderReportEnvelope> streamReports(@RequestParam(required = false) String shareholderId) {
+        if (shareholderId == null || shareholderId.isBlank() || shareholderId.trim().length() != 10) {
+            return Flux.error(new ResponseStatusException(HttpStatus.BAD_REQUEST, "shareholderId required and must be 10 characters"));
+        }
+        return orderReportStreamService.stream(shareholderId.trim());
     }
 }
