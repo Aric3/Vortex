@@ -125,6 +125,18 @@
 - 请求方式：GET（单次查询）
 - 接口路径：/api/v1/vclient/quote/tick/{securityId} — 最新成交价（逐笔）
 - 接口路径：/api/v1/vclient/quote/handicap/{securityId} — 买卖五档（盘口）
+- 接口路径：/api/v1/vclient/quote/symbols — 可选股票代码列表（来自后端配置的 symbols）
+
+- `/api/v1/vclient/quote/symbols` 响应示例：
+```json
+{
+  "success": true,
+  "code": 0,
+  "message": "OK",
+  "data": ["600030", "600519", "600036", "000001", "000858", "0700", "AAPL"],
+  "timestamp": 1772023126873
+}
+```
 
 - 请求方式：GET（SSE 推送，两个接口）
 - 接口路径：/api/v1/vclient/quote/stream/tick/{securityId} — 持续推送最新成交价（tick），供前端参考价。每条事件 JSON：`{ "code", "lastPrice", "volume", "tickTimeMs" }`，无数据时为 null。

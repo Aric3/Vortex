@@ -149,7 +149,7 @@ npm run dev
 | GET | `/quote/stream/tick/{securityId}` | 行情 tick SSE |
 | GET | `/quote/stream/handicap/{securityId}` | 行情盘口 SSE |
 | GET | `/stream/reports?shareholderId=xxx` | 订单回报 SSE |
-| GET | `/api/v1/analytics/metrics` | 风控与延时指标 |
+| GET | `/api/v1/analytics/metrics` | 风控与成交延时指标 |
 
 完整请求/响应格式见 [docs/api_spec.md](docs/api_spec.md)。
 
@@ -170,7 +170,7 @@ npm run dev
 2. **订单簿对比图**：SSE 订阅 `orderbook/{securityId}/stream`，买卖盘双向条形图  
 3. **成交分布图**：SSE 订阅 `stream/reports`，按价格桶聚合该股东成交  
 4. **下单/撤单控制台**：提交订单、撤单，并展示该股东的回报流（确认/拒绝/成交/撤单确认）  
-5. **风控与性能指标**：轮询 `analytics/metrics`，对敲拒绝数、占比、延时分桶
+5. **风控与成交延时指标**：轮询 `analytics/metrics`，对敲拒绝数、占比、延时分桶
 
 ### 推荐联调流程
 
