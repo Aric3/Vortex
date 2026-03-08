@@ -7,6 +7,7 @@ import com.kimiha.vortexcore.matching.OrderBookSnapshot;
 
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
+import reactor.util.concurrent.Queues;
 
 import java.time.Duration;
 import java.util.concurrent.ConcurrentHashMap;
@@ -33,8 +34,9 @@ public class OrderBookStreamService {
      * 订阅该标的订单簿流：订阅时传入 depth，立即收到当前快照（前 depth 档），之后每次订单簿变动或每 30 秒推送一次快照（保活）
      */
     public Flux<OrderBookSnapshot> stream(String securityId, int depth) {
+        // autoCancel=false：刷新后新连接仍能收到订单簿变动，否则 Sink 在上一连接关闭后即失效
         Sinks.Many<Object> sink = sinksBySecurity.computeIfAbsent(securityId,
-                k -> Sinks.many().multicast().onBackpressureBuffer());
+                k -> Sinks.many().multicast().onBackpressureBuffer(Queues.SMALL_BUFFER_SIZE, false));
         Flux<OrderBookSnapshot> onChange = sink.asFlux().map(ignore -> currentSnapshot(securityId, depth));
         Flux<OrderBookSnapshot> heartbeat = Flux.interval(HEARTBEAT_INTERVAL).map(tick -> currentSnapshot(securityId, depth));
         return Flux.concat(

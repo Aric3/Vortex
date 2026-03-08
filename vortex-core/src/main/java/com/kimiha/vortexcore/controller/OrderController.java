@@ -16,6 +16,8 @@ import org.springframework.data.domain.Page;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
@@ -23,6 +25,9 @@ import reactor.core.publisher.Flux;
 @RestController
 @RequestMapping("/api/v1/vclient")
 public class OrderController {
+
+    private static final Logger log = LogManager.getLogger(OrderController.class);
+
     private final OrderService orderService;
     private final OrderReportStreamService orderReportStreamService;
 
@@ -95,12 +100,25 @@ public class OrderController {
     }
 
     /**
+     * 按股东号查询该股东作为 taker 的成交明细，按 clOrderId 分组。前端刷新后拉取以恢复多笔成交展示。
+     * GET /api/v1/vclient/orders/executions?shareholderId=xxx
+     */
+    @GetMapping("/orders/executions")
+    public Result getExecutionsByShareholderId(@RequestParam String shareholderId) {
+        if (shareholderId == null || shareholderId.length() != 10) {
+            return Result.fail(ResultCode.VALIDATION_ERROR, "shareholderId invalid");
+        }
+        return Result.success(orderService.findExecutionsByShareholderId(shareholderId), "Executions retrieved");
+    }
+
+    /**
      * 订单回报 SSE 流：客户端按股东号订阅，接收该股东下的订单成交回报、撤单确认回报等。
      * 连接后保持长连接，有回报时服务端推送
      * GET /api/v1/vclient/stream/reports?shareholderId=xxx
      */
     @GetMapping(value = "/stream/reports", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<OrderReportEnvelope> streamReports(@RequestParam String shareholderId) {
+        log.info("[REPORT_STREAM] GET /stream/reports shareholderId={}", shareholderId);
         return orderReportStreamService.stream(shareholderId);
     }
 }
