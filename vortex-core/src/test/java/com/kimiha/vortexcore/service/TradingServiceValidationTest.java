@@ -12,6 +12,7 @@ import com.kimiha.vortexcore.disruptor.order.OrderEvent;
 import com.kimiha.vortexcore.model.ValidationResult;
 import com.kimiha.vortexcore.model.domain.Order;
 import com.kimiha.vortexcore.repository.OrderRepository;
+import com.kimiha.vortexcore.repository.TradeRepository;
 import com.lmax.disruptor.RingBuffer;
 import com.lmax.disruptor.dsl.Disruptor;
 import org.junit.jupiter.api.BeforeEach;
@@ -36,11 +37,12 @@ class TradingServiceValidationTest {
     @BeforeEach
     void setUp() {
         OrderRepository orderRepository = mock(OrderRepository.class);
+        TradeRepository tradeRepository = mock(TradeRepository.class);
         Disruptor<OrderEvent> disruptor = mock(Disruptor.class);
         RingBuffer<OrderEvent> ringBuffer = mock(RingBuffer.class);
         when(disruptor.getRingBuffer()).thenReturn(ringBuffer);
         doNothing().when(ringBuffer).publishEvent(any());
-        tradingService = new OrderService(orderRepository, disruptor);
+        tradingService = new OrderService(orderRepository, tradeRepository, disruptor);
     }
 
     @Test
