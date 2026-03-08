@@ -142,6 +142,8 @@ npm run dev
 | POST | `/orders` | 下单 |
 | POST | `/orders/cancel` | 撤单 |
 | GET | `/orders`, `/orders/{clOrderId}` | 订单查询 |
+| GET | `/orders/history?shareholderId=&page=&size=` | 按股东号分页历史订单 |
+| GET | `/orders/executions?shareholderId=` | 按股东号成交明细（刷新后恢复多笔成交展示） |
 | GET | `/orderbook/{securityId}?depth=10` | 订单簿快照 |
 | GET | `/orderbook/{securityId}/stream?depth=10` | 订单簿 SSE |
 | GET | `/quote/tick/{securityId}` | 最新成交价 |
@@ -169,7 +171,7 @@ npm run dev
 1. **顶部过滤**：股东号、股票代码、订单簿深度 — 用于 SSE 订阅与下单默认值  
 2. **订单簿对比图**：SSE 订阅 `orderbook/{securityId}/stream`，买卖盘双向条形图  
 3. **成交分布图**：SSE 订阅 `stream/reports`，按价格桶聚合该股东成交  
-4. **下单/撤单控制台**：提交订单、撤单，并展示该股东的回报流（确认/拒绝/成交/撤单确认）  
+4. **下单/撤单控制台**：提交订单、撤单，并展示该股东的回报流（确认/拒绝/成交/撤单确认）；订单状态表支持委托价/成交价、多笔成交展开明细，刷新后通过 `orders/executions` 接口拉取成交明细恢复展示；拒绝回报按 rejectCode 显示中文原因（对敲拒绝、重复订单、价格偏离等）  
 5. **风控与成交延时指标**：轮询 `analytics/metrics`，对敲拒绝数、占比、延时分桶
 
 ### 推荐联调流程
