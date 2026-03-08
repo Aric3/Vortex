@@ -39,9 +39,25 @@ export const useReportNotificationsStore = defineStore('reportNotifications', ()
         color = 'success';
         break;
       case 'ORDER_REJECT': {
-        const isWashTrade = Number(d.rejectCode) === 4001;
-        title = '订单拒绝';
-        subtitle = isWashTrade ? (d.rejectText || '对敲拒绝') : `原因：${d.rejectText || d.rejectCode}`;
+        const code = Number(d.rejectCode);
+        const reasonTitles: Record<number, string> = {
+          4001: '对敲拒绝',
+          4002: '重复订单拒绝',
+          4003: '价格偏离拒绝',
+          1001: '未找到拒绝',
+          1999: '校验失败',
+          5000: '系统错误',
+        };
+        const reasonReasons: Record<number, string> = {
+          4001: '对敲检测不通过',
+          4002: '重复的客户订单号（clOrderId）',
+          4003: '委托价格偏离最新价过大',
+          1001: '订单未找到',
+          1999: '参数校验失败',
+          5000: '系统内部错误',
+        };
+        title = reasonTitles[code] || '订单拒绝';
+        subtitle = reasonReasons[code] || d.rejectText || String(d.rejectCode ?? '');
         color = 'danger';
         break;
       }
@@ -55,11 +71,17 @@ export const useReportNotificationsStore = defineStore('reportNotifications', ()
         subtitle = `撤单数量 ${d.canceledQty}，累计成交 ${d.cumQty}`;
         color = 'warning';
         break;
-      case 'CANCEL_REJECT':
+      case 'CANCEL_REJECT': {
+        const code = Number(d.rejectCode);
+        const cancelRejectReasons: Record<number, string> = {
+          1001: '订单未找到或已成交/已撤',
+          1999: '撤单参数校验失败',
+        };
         title = '撤单拒绝';
-        subtitle = d.rejectText || String(d.rejectCode || '');
+        subtitle = cancelRejectReasons[code] || d.rejectText || String(d.rejectCode ?? '');
         color = 'danger';
         break;
+      }
       default:
         subtitle = typeof d === 'object' ? JSON.stringify(d) : String(d);
     }

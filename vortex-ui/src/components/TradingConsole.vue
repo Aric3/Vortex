@@ -11,7 +11,7 @@
 
     <el-tabs v-model="activeTab" class="tabs" type="card">
       <el-tab-pane label="下单" name="order">
-        <el-form :model="orderForm" label-width="90px" size="small" class="form">
+        <el-form ref="orderFormRef" :model="orderForm" :rules="orderFormRules" label-width="90px" size="small" class="form">
           <el-form-item label="市场">
             <el-select v-model="orderForm.market" placeholder="选择市场" style="width: 140px">
               <el-option label="上交所 XSHG" value="XSHG" />
@@ -31,8 +31,8 @@
             <el-input v-model="orderForm.shareholderId" placeholder="10位，如 A001000000" maxlength="10" show-word-limit />
           </el-form-item>
 
-          <el-form-item label="股票代码">
-            <el-input v-model="orderForm.securityId" placeholder="6位，如 600030" maxlength="6" show-word-limit />
+          <el-form-item label="股票代码" prop="securityId">
+            <el-input v-model="orderForm.securityId" placeholder="6位数字，如 600030" maxlength="6" show-word-limit />
           </el-form-item>
 
           <el-form-item label="数量">
@@ -52,7 +52,7 @@
       </el-tab-pane>
 
       <el-tab-pane label="撤单" name="cancel">
-        <el-form :model="cancelForm" label-width="90px" size="small" class="form">
+        <el-form ref="cancelFormRef" :model="cancelForm" :rules="cancelFormRules" label-width="90px" size="small" class="form">
           <el-form-item label="市场">
             <el-select v-model="cancelForm.market" placeholder="选择市场" style="width: 140px">
               <el-option label="上交所 XSHG" value="XSHG" />
@@ -65,8 +65,8 @@
             <el-input v-model="cancelForm.shareholderId" placeholder="10位" maxlength="10" show-word-limit />
           </el-form-item>
 
-          <el-form-item label="股票代码">
-            <el-input v-model="cancelForm.securityId" placeholder="6位" maxlength="6" show-word-limit />
+          <el-form-item label="股票代码" prop="securityId">
+            <el-input v-model="cancelForm.securityId" placeholder="6位数字" maxlength="6" show-word-limit />
           </el-form-item>
 
           <el-form-item label="买卖方向">
@@ -103,7 +103,22 @@
             class="order-table"
             v-loading="orderHistoryLoading"
             element-loading-text="加载订单历史..."
+            row-key="clOrderId"
           >
+            <el-table-column type="expand">
+              <template #default="{ row }">
+                <div v-if="row.executions?.length" class="exec-detail">
+                  <div class="exec-detail-title">成交明细（共 {{ row.executions.length }} 笔）</div>
+                  <el-table :data="row.executions" size="small" border class="exec-table">
+                    <el-table-column prop="execId" label="成交编号" width="180" />
+                    <el-table-column prop="execQty" label="成交量" width="90" align="right" />
+                    <el-table-column label="成交价" width="90" align="right">
+                      <template #default="{ row: ex }">{{ formatPrice(ex.execPrice) }}</template>
+                    </el-table-column>
+                  </el-table>
+                </div>
+              </template>
+            </el-table-column>
             <el-table-column prop="clOrderId" label="订单号" width="180">
               <template #default="{ row }">
                 <span class="mono">{{ row.status === '已拒绝' ? '—' : row.clOrderId }}</span>
@@ -116,7 +131,18 @@
               <template #default="{ row }">{{ row.side === 'B' ? '买' : '卖' }}</template>
             </el-table-column>
             <el-table-column prop="qty" label="数量" width="72" align="right" />
-            <el-table-column prop="price" label="价格" width="72" align="right" />
+            <el-table-column label="委托价" width="72" align="right">
+              <template #default="{ row }">{{ formatPrice(row.price) }}</template>
+            </el-table-column>
+            <el-table-column label="成交价" width="88" align="right">
+              <template #default="{ row }">
+                <template v-if="row.status !== '部分成交' && row.status !== '已成'">—</template>
+                <template v-else-if="!row.executions?.length && row.execPrice != null">{{ formatPrice(row.execPrice) }}</template>
+                <template v-else-if="row.executions?.length === 1">{{ formatPrice(row.executions[0].execPrice) }}</template>
+                <template v-else-if="row.executions?.length">多笔({{ row.executions.length }}) · 展开查看</template>
+                <template v-else>—</template>
+              </template>
+            </el-table-column>
             <el-table-column prop="status" label="状态" width="88">
               <template #default="{ row }">
                 <el-tag :type="statusTagType(row.status)" size="small">{{ row.status }}</el-tag>
@@ -151,6 +177,9 @@ const props = defineProps<{
 
 const filterStore = useFilterStore();
 
+/** 单笔成交明细（与后端 OrderExecution 对应） */
+type ExecItem = { execId: string; execQty: number; execPrice: number };
+
 type OrderRow = {
   clOrderId: string;
   market: string;
@@ -158,6 +187,10 @@ type OrderRow = {
   side: string;
   qty: number;
   price: number;
+  /** 成交价（单笔时展示，多笔时见展开明细） */
+  execPrice?: number;
+  /** 多笔成交明细，按回报顺序追加 */
+  executions?: ExecItem[];
   status: string;
   cumQty: number;
   lastUpdate: string;
@@ -211,6 +244,17 @@ const cancelForm = reactive<CancelOrderRequest>({
   side: 'B',
   shareholderId: '',
 });
+
+/** 股票代码：必填且须为 6 位数字 */
+const securityIdRules = [
+  { required: true, message: '请输入股票代码', trigger: 'blur' },
+  { pattern: /^\d{6}$/, message: '须为 6 位数字', trigger: 'blur' },
+] as const;
+const orderFormRules = { securityId: securityIdRules };
+const cancelFormRules = { securityId: securityIdRules };
+
+const orderFormRef = ref<InstanceType<typeof import('element-plus').ElForm> | null>(null);
+const cancelFormRef = ref<InstanceType<typeof import('element-plus').ElForm> | null>(null);
 
 const submittingOrder = ref(false);
 const submittingCancel = ref(false);
@@ -280,8 +324,8 @@ async function submitOrder() {
     ElMessage.error('股东号须为 10 位字符串。');
     return;
   }
-  if (sid.length !== 6) {
-    ElMessage.error('股票代码须为 6 位字符串。');
+  if (!/^\d{6}$/.test(sid)) {
+    ElMessage.error('股票代码须为 6 位数字。');
     return;
   }
   if (!orderForm.qty || orderForm.qty <= 0 || !orderForm.price || orderForm.price <= 0) {
@@ -320,8 +364,8 @@ async function submitCancel() {
     ElMessage.error('股东号须为 10 位字符串。');
     return;
   }
-  if (sid.length !== 6) {
-    ElMessage.error('股票代码须为 6 位字符串。');
+  if (!/^\d{6}$/.test(sid)) {
+    ElMessage.error('股票代码须为 6 位数字。');
     return;
   }
   if (orig.length !== 16) {
@@ -366,6 +410,8 @@ function upsertOrder(clOrderId: string, patch: Partial<OrderRow>) {
       side: patch.side ?? '',
       qty: patch.qty ?? 0,
       price: patch.price ?? 0,
+      execPrice: patch.execPrice,
+      executions: patch.executions ?? [],
       status: patch.status ?? '已报',
       cumQty: patch.cumQty ?? 0,
       lastUpdate: timeText,
@@ -391,6 +437,20 @@ function orderStatusToDisplay(s: string | undefined): string {
   if (u === 'Canceled') return '已撤';
   if (u === 'Rejected') return '已拒绝';
   return u;
+}
+
+/** 根据拒绝码与后端 ResultCode 一致：4001 对敲 4002 重复订单 4003 价格偏离 */
+function rejectCodeToStatus(rejectCode: number | undefined, rejectText?: string): string {
+  const code = Number(rejectCode);
+  switch (code) {
+    case 4001: return '对敲拒绝';
+    case 4002: return '重复订单拒绝';
+    case 4003: return '价格偏离拒绝';
+    case 1001: return '未找到拒绝';
+    case 1999: return '校验失败';
+    case 5000: return '系统错误';
+    default: return rejectText ? `已拒绝：${rejectText}` : '已拒绝';
+  }
 }
 /** 从接口时间字符串解析毫秒时间戳（支持 ISO 或 "yyyy-MM-dd HH:mm:ss"） */
 function parseTimeMs(t: string | undefined): number {
@@ -424,11 +484,33 @@ async function loadOrderHistory(shareholderId: string) {
         side: o.side ?? '',
         qty: Number(o.qty) ?? 0,
         price: Number(o.price) ?? 0,
+        executions: [],
         status: orderStatusToDisplay(o.status),
         cumQty: Number(o.cumQty) ?? 0,
         lastUpdate: timeText,
         lastUpdateMs,
       });
+    }
+    // 刷新后从后端拉取成交明细，恢复多笔成交展示
+    try {
+      const execRes = await http.get<ApiResult<Record<string, Array<{ execId: string; execQty: number; execPrice: number }>>>>(
+        `/v1/vclient/orders/executions?shareholderId=${encodeURIComponent(sh)}`
+      );
+      if (execRes.data?.success && execRes.data?.data) {
+        const execMap = execRes.data.data as Record<string, Array<{ execId: string; execQty: number; execPrice: number }>>;
+        for (const [clOrderId, list] of Object.entries(execMap)) {
+          const row = orderMap.get(clOrderId);
+          if (row && Array.isArray(list) && list.length) {
+            row.executions = list.map((e) => ({
+              execId: String(e.execId ?? ''),
+              execQty: Number(e.execQty) ?? 0,
+              execPrice: Number(e.execPrice) ?? 0,
+            }));
+          }
+        }
+      }
+    } catch {
+      // 成交明细接口失败不影响订单列表展示，仅无多笔明细
     }
     flushOrderList();
   } catch (e: any) {
@@ -449,10 +531,19 @@ function copyToCancel(clOrderId: string) {
   }
 }
 
+/** 价格统一显示为 2 位小数（表格中为委托价，非成交价） */
+function formatPrice(v: unknown): string {
+  if (v == null || v === '') return '—';
+  const n = Number(v);
+  if (Number.isNaN(n)) return String(v);
+  return n.toFixed(2);
+}
+
 function statusTagType(status: string): 'success' | 'warning' | 'danger' | 'info' {
   if (status === '已确认' || status === '已成') return 'success';
   if (status === '部分成交' || status === '已撤') return 'warning';
-  if (status === '已拒绝' || status === '撤单拒绝') return 'danger';
+  if (status === '撤单拒绝') return 'danger';
+  if (status.includes('拒绝') || status.startsWith('已拒绝')) return 'danger';
   return 'info';
 }
 
@@ -481,14 +572,14 @@ function applyReportToOrderMap(env: OrderReportEnvelopeTyped<any>) {
       }
       break;
     case 'ORDER_REJECT':
-      if (d.clOrderId && Number(d.rejectCode) !== 4001) {
+      if (d.clOrderId) {
         upsertOrder(d.clOrderId, {
           market: d.market,
           securityId: d.securityId,
           side: d.side,
           qty: Number(d.qty),
           price: Number(d.price),
-          status: '已拒绝',
+          status: rejectCodeToStatus(d.rejectCode, d.rejectText),
         });
       }
       break;
@@ -498,12 +589,20 @@ function applyReportToOrderMap(env: OrderReportEnvelopeTyped<any>) {
         const add = Number(d.execQty) || 0;
         const newCum = (row?.cumQty ?? 0) + add;
         const qty = row?.qty ?? Number(d.qty);
+        const execItem: ExecItem = {
+          execId: String(d.execId ?? ''),
+          execQty: add,
+          execPrice: Number(d.execPrice),
+        };
+        const prevExecutions = row?.executions ?? [];
         upsertOrder(d.clOrderId, {
           market: row?.market ?? d.market,
           securityId: row?.securityId ?? d.securityId,
           side: row?.side ?? d.side,
           qty,
           price: row?.price ?? Number(d.price),
+          execPrice: Number(d.execPrice),
+          executions: [...prevExecutions, execItem],
           status: newCum >= qty ? '已成' : '部分成交',
           cumQty: newCum,
         });
@@ -598,6 +697,19 @@ watch(boundShareholderId, () => {
 }
 
 .order-table {
+  font-size: 12px;
+}
+
+.exec-detail {
+  padding: 8px 16px 12px;
+  background: #f9fafb;
+}
+.exec-detail-title {
+  font-size: 12px;
+  color: #6b7280;
+  margin-bottom: 6px;
+}
+.exec-table {
   font-size: 12px;
 }
 

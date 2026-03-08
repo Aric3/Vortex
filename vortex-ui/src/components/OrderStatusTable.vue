@@ -34,7 +34,8 @@
       <el-table-column prop="clOrderId" label="clOrderId" width="170" />
       <el-table-column prop="sideText" label="方向" width="70" />
       <el-table-column prop="qty" label="数量" width="90" />
-      <el-table-column prop="price" label="价格" width="90" />
+      <el-table-column prop="price" label="委托价" width="90" :formatter="formatPriceColumn" />
+      <el-table-column label="成交价" width="90" :formatter="formatExecPriceColumn" />
       <el-table-column prop="statusText" label="状态" min-width="160" />
     </el-table>
 
@@ -74,6 +75,26 @@ function normalizeStatus(raw: string | undefined): string {
   return String(raw).toUpperCase();
 }
 
+/** 价格统一显示为 2 位小数（委托价） */
+function formatPriceColumn(_row: any, _column: any, cellValue: any): string {
+  if (cellValue == null || cellValue === '') return '—';
+  const n = Number(cellValue);
+  if (Number.isNaN(n)) return String(cellValue);
+  return n.toFixed(2);
+}
+
+/** 成交价：有且为已成交/部分成交时显示 2 位小数，否则 —（该表数据来自接口与本地，接口暂无成交价时多为 —） */
+function formatExecPriceColumn(row: any): string {
+  const execPrice = row?.execPrice;
+  const statusText = row?.statusText ?? '';
+  const rawStatus = String(row?._status ?? row?.status ?? '').toUpperCase();
+  const isFilled = /已成交|部分成交/.test(statusText) || ['EXECUTED', 'FILLED', 'PARTIALLYFILLED'].includes(rawStatus);
+  if (execPrice == null || execPrice === '' || !isFilled) return '—';
+  const n = Number(execPrice);
+  if (Number.isNaN(n)) return '—';
+  return n.toFixed(2);
+}
+
 function statusToText(s: string): string {
   switch (s) {
     case "SUBMITTED":
@@ -83,12 +104,16 @@ function statusToText(s: string): string {
     case "REJECTED":
       return "已拒绝（非法回报）";
     case "EXECUTED":
+    case "FILLED":
       return "已成交";
+    case "PARTIALLYFILLED":
+      return "部分成交";
     case "CANCELED":
       return "已撤单";
     case "CANCEL_REJECTED":
       return "撤单被拒绝";
     case "IN_BOOK":
+    case "NEW":
       return "在簿";
     default:
       return s;
