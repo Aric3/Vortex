@@ -141,7 +141,7 @@ public class AllTickWebSocketClient {
                 handicapHandler.handlePush(wire.getData());
             }
         } catch (Exception e) {
-            log.trace("AllTick message parse skip: {}", e.getMessage());
+            // 热路径：仅静默跳过解析异常，不打印日志
         }
     }
 

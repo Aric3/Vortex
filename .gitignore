@@ -14,7 +14,7 @@ Thumbs.db
 
 vortex-core/target/
 vortex-core/build/
-vortex-core/.mvn/
+vortex-core/.mvn/wrapper/
 vortex-core/mvnw
 vortex-core/mvnw.cmd
 *.class
