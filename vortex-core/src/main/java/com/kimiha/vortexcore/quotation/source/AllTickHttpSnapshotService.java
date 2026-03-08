@@ -102,7 +102,7 @@ public class AllTickHttpSnapshotService {
                 log.info("AllTick HTTP snapshot cached {} lastPrice={}", tick.getCode(), price);
             }
         } catch (Exception e) {
-            log.warn("AllTick HTTP tick snapshot failed: {}", e.getMessage());
+            log.error("AllTick HTTP tick snapshot failed", e);
         }
     }
 
@@ -142,7 +142,7 @@ public class AllTickHttpSnapshotService {
                 log.info("AllTick HTTP handicap snapshot cached {} bids={} asks={}", item.getCode(), bids.size(), asks.size());
             }
         } catch (Exception e) {
-            log.warn("AllTick HTTP handicap snapshot failed: {}", e.getMessage());
+            log.error("AllTick HTTP handicap snapshot failed", e);
         }
     }
 

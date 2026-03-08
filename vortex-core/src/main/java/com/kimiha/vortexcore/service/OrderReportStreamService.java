@@ -39,8 +39,7 @@ public class OrderReportStreamService {
         // autoCancel=false：浏览器刷新会取消订阅，若用默认 true 则 Sink 会被关掉，新连接收不到回报
         Sinks.Many<OrderReportEnvelope> sink = sinksByShareholder.computeIfAbsent(shareholderId,
                 k -> Sinks.many().multicast().onBackpressureBuffer(Queues.SMALL_BUFFER_SIZE, false));
-        log.info("[REPORT_STREAM] SSE subscribed shareholderId={} activeSubscribers={}",
-                shareholderId, sinksByShareholder.size());
+        log.info("[REPORT_STREAM] SSE subscribed shareholderId={} activeSubscribers={}", shareholderId, sinksByShareholder.size());
         Flux<OrderReportEnvelope> heartbeats = Flux.concat(
                 Flux.just(HEARTBEAT_ENVELOPE),
                 Flux.interval(HEARTBEAT_INTERVAL).map(tick -> HEARTBEAT_ENVELOPE)
@@ -55,16 +54,7 @@ public class OrderReportStreamService {
         if (shareholderId == null || report == null) return;
         Sinks.Many<OrderReportEnvelope> sink = sinksByShareholder.get(shareholderId);
         if (sink != null) {
-            Sinks.EmitResult result = sink.tryEmitNext(report);
-            log.debug("[REPORT_STREAM] pushReport shareholderId={} reportType={} emitResult={}",
-                    shareholderId, report.getReportType(), result);
-            if (result.isFailure()) {
-                log.warn("[REPORT_STREAM] pushReport emit failed shareholderId={} reportType={} result={}",
-                        shareholderId, report.getReportType(), result);
-            }
-        } else {
-            log.warn("[REPORT_STREAM] pushReport no sink for shareholderId={} reportType={} (SSE not connected for this shareholder?)",
-                    shareholderId, report.getReportType());
+            sink.tryEmitNext(report);
         }
     }
 }

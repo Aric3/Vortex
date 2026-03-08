@@ -89,7 +89,7 @@ public class AnalyticsService {
             bootstrapIfNeeded();
             emitSnapshot();
         } catch (Exception e) {
-            log.warn("Analytics refresh failed", e);
+            log.error("Analytics refresh failed", e);
         }
     }
 
@@ -246,7 +246,7 @@ public class AnalyticsService {
                 latencyBucketCounters.computeIfAbsent(bucket, key -> new LongAdder()).increment();
             }
         } catch (Exception e) {
-            log.warn("Analytics bootstrap from database failed", e);
+            log.error("Analytics bootstrap from database failed", e);
         }
     }
 

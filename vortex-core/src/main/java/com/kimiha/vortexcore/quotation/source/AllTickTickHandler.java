@@ -4,8 +4,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kimiha.vortexcore.model.dto.alltick.AllTickTickDto;
 import com.kimiha.vortexcore.quotation.cache.QuotationCache;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -17,7 +15,6 @@ import java.util.List;
 public class AllTickTickHandler {
 
     private static final int CMD_SUBSCRIBE_TICK = 22004;
-    private static final Logger log = LoggerFactory.getLogger(AllTickTickHandler.class);
 
     private final QuotationCache quoteCache;
     private final ObjectMapper objectMapper;
@@ -58,9 +55,8 @@ public class AllTickTickHandler {
                 tickTimeMs *= 1000;
             }
             quoteCache.putTick(dto.getCode(), price, volume, tickTimeMs);
-            log.debug("AllTick cached tick {} lastPrice={} volume={}", dto.getCode(), price, volume);
         } catch (Exception e) {
-            log.trace("AllTick tick parse skip: {}", e.getMessage());
+            // 热路径：仅静默跳过解析异常，不打印日志
         }
     }
 

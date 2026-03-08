@@ -25,8 +25,6 @@ import com.kimiha.vortexcore.service.OrderReportStreamService;
 import com.kimiha.vortexcore.service.QuotationService;
 import com.kimiha.vortexcore.service.tools.ExecIdGenerator;
 import com.lmax.disruptor.EventHandler;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
@@ -36,8 +34,6 @@ import java.util.List;
 
 @Component
 public class OrderEventHandler implements EventHandler<OrderEvent> {
-
-    private static final Logger log = LogManager.getLogger(OrderEventHandler.class);
 
     private static final String REJECT_TEXT_WASH_TRADE = "Wash trade rejected";
     private static final String REJECT_TEXT_DUPLICATE_CL_ORDER_ID = "Duplicate clOrderId";
@@ -75,12 +71,9 @@ public class OrderEventHandler implements EventHandler<OrderEvent> {
         }
         Order order = event.getOrder();
         String securityId = order.getSecurityId();
-        log.info("[ORDER_HANDLER] processing order clOrderId={} shareholderId={} securityId={}",
-                order.getClOrderId(), order.getShareholderId(), securityId);
         OrderBook book = matchingEngine.getOrderBook(securityId);
         /*  重复单检测  */
         if (book.illegalClOrderId(order)) {
-            log.warn("[ORDER_HANDLER] reject duplicate clOrderId clOrderId={} shareholderId={}", order.getClOrderId(), order.getShareholderId());
             OrderReject reject = new OrderReject(
                     order.getClOrderId(), order.getMarket(), securityId, order.getSide(),
                     order.getQty(), order.getPrice(), order.getShareholderId(),
@@ -104,8 +97,6 @@ public class OrderEventHandler implements EventHandler<OrderEvent> {
                 double lastPrice = tick.getLastPrice();
                 double deviation = Math.abs(order.getPrice() - lastPrice) / lastPrice;
                 if (deviation > priceDeviationMax) {
-                    log.warn("[ORDER_HANDLER] reject price deviation clOrderId={} shareholderId={} orderPrice={} lastPrice={} deviation={}",
-                            order.getClOrderId(), order.getShareholderId(), order.getPrice(), lastPrice, deviation);
                     OrderReject reject = new OrderReject(
                             order.getClOrderId(), order.getMarket(), securityId, order.getSide(),
                             order.getQty(), order.getPrice(), order.getShareholderId(),
@@ -127,7 +118,6 @@ public class OrderEventHandler implements EventHandler<OrderEvent> {
 
         /**  对敲检测  */
         if (book.isWashTrading(order)) {
-            log.warn("[ORDER_HANDLER] reject wash trade clOrderId={} shareholderId={}", order.getClOrderId(), order.getShareholderId());
             OrderReject reject = new OrderReject(
                     order.getClOrderId(), order.getMarket(), securityId, order.getSide(),
                     order.getQty(), order.getPrice(), order.getShareholderId(),
@@ -156,7 +146,6 @@ public class OrderEventHandler implements EventHandler<OrderEvent> {
             OrderConfirm confirm = new OrderConfirm(
                     order.getClOrderId(), order.getMarket(), securityId, order.getSide(),
                     order.getQty(), order.getPrice(), order.getShareholderId());
-            log.info("[ORDER_HANDLER] pushing OrderConfirm clOrderId={} shareholderId={}", order.getClOrderId(), order.getShareholderId());
             reportStreamService.pushReport(order.getShareholderId(),
                     new OrderReportEnvelope(OrderConfirm.REPORT_TYPE, confirm));
         }
@@ -170,8 +159,6 @@ public class OrderEventHandler implements EventHandler<OrderEvent> {
         int takerOriginalQty = order.getQty();
         MatchResult matchResult = book.executeMatch(order);
         List<TradeResult> tradeResults = matchResult.tradeResults();
-        log.debug("[ORDER_HANDLER] match done clOrderId={} shareholderId={} tradeCount={}",
-                order.getClOrderId(), order.getShareholderId(), tradeResults.size());
 
         if (!tradeResults.isEmpty()) {
             long tradeTimeEpochMs = System.currentTimeMillis();
@@ -183,8 +170,6 @@ public class OrderEventHandler implements EventHandler<OrderEvent> {
                             tr.takerClOrderId(), order.getMarket(), securityId, order.getSide(),
                             takerOriginalQty, order.getPrice(), order.getShareholderId(),
                             execId, tr.qty(), tr.price());
-                    log.info("[ORDER_HANDLER] pushing OrderExecution taker clOrderId={} shareholderId={} execId={} qty={}",
-                            tr.takerClOrderId(), order.getShareholderId(), execId, tr.qty());
                     reportStreamService.pushReport(order.getShareholderId(),
                             new OrderReportEnvelope(OrderExecution.REPORT_TYPE, takerReport));
                     // Maker 成交回报
@@ -192,8 +177,6 @@ public class OrderEventHandler implements EventHandler<OrderEvent> {
                             tr.makerClOrderId(), order.getMarket(), securityId, tr.makerSide(),
                             tr.makerOriginalQty(), tr.makerPrice(), tr.makerShareholderId(),
                             execId, tr.qty(), tr.price());
-                    log.info("[ORDER_HANDLER] pushing OrderExecution maker clOrderId={} shareholderId={} execId={} qty={}",
-                            tr.makerClOrderId(), tr.makerShareholderId(), execId, tr.qty());
                     reportStreamService.pushReport(tr.makerShareholderId(),
                             new OrderReportEnvelope(OrderExecution.REPORT_TYPE, makerReport));
                 }

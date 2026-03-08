@@ -6,8 +6,6 @@ import com.kimiha.vortexcore.model.QuoteLevel;
 import com.kimiha.vortexcore.model.dto.alltick.AllTickHandicapDto;
 import com.kimiha.vortexcore.model.dto.alltick.AllTickHandicapLevelDto;
 import com.kimiha.vortexcore.quotation.cache.QuotationCache;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -23,7 +21,6 @@ public class AllTickHandicapHandler {
     private static final int CMD_SUBSCRIBE_HANDICAP = 22002;
     /** 沪深 A 股盘口最大档数 */
     private static final int DEPTH_LEVEL = 5;
-    private static final Logger log = LoggerFactory.getLogger(AllTickHandicapHandler.class);
 
     private final QuotationCache quoteCache;
     private final ObjectMapper objectMapper;
@@ -64,9 +61,8 @@ public class AllTickHandicapHandler {
             List<QuoteLevel> bids = toQuoteLevels(dto.getBids());
             List<QuoteLevel> asks = toQuoteLevels(dto.getAsks());
             quoteCache.putHandicap(dto.getCode(), bids, asks, tickTimeMs);
-            log.debug("AllTick cached handicap {} bids={} asks={}", dto.getCode(), bids.size(), asks.size());
         } catch (Exception e) {
-            log.trace("AllTick handicap parse skip: {}", e.getMessage());
+            // 热路径：仅静默跳过解析异常，不打印日志
         }
     }
 
