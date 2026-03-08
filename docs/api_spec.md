@@ -1,4 +1,4 @@
-﻿# Vortex 系统接口规范 v2.1
+# Vortex 系统接口规范 v2.2
 ## 1. 客户端相关接口（/api/v1/vclient）
 ### 1.1 下单
 - 请求方式：POST
@@ -71,6 +71,7 @@
 - 接口路径：/api/v1/vclient/stream/reports?shareholderId=
 - 查询参数：shareholderId（必填，股东号）
 - 响应：`Content-Type: text/event-stream`，长连接。服务端向该股东推送异步回报（JSON 封装在 `OrderReportEnvelope`：`reportType` + `data`），包括：订单确认（ORDER_CONFIRM）、订单拒绝（ORDER_REJECT，如对敲不通过）、订单成交（ORDER_EXECUTION）、撤单确认（CANCEL_CONFIRM）、撤单拒绝（CANCEL_REJECT）。客户端需先建立此连接，再下单/撤单，才能实时收到确认/拒绝与成交回报。
+- 说明：连接在浏览器刷新后仍可重新建立并正常接收回报（服务端 Sink 未在断连时关闭）。一笔委托若与多笔对手单成交，会收到**多条** ORDER_EXECUTION（每条对应一笔成交，含独立 execId、execQty、execPrice）。
 
 ### 1.4 查询订单簿
 - 请求方式：GET（单次查询）
@@ -149,7 +150,7 @@
   - `shareholderId`（必填，10位股东号）
   - `page`（可选，默认 `0`，从 `0` 开始）
   - `size`（可选，默认 `20`，取值 `1~200`）
-- 说明：按创建时间倒序分页返回该股东的历史订单（最新在前）。
+- 说明：按创建时间倒序分页返回该股东的历史订单（最新在前）。订单状态含：New、PartiallyFilled、Filled、Canceled、Rejected。
 - 响应示例：
 ```json
 {
@@ -184,6 +185,28 @@
 }
 ```
 
+### 1.7 按股东号查询成交明细（刷新后恢复多笔成交展示）
+- 请求方式：GET
+- 接口路径：`/api/v1/vclient/orders/executions?shareholderId=`
+- 查询参数：`shareholderId`（必填，10 位股东号）
+- 说明：返回该股东作为 taker 的成交记录，按 `clOrderId` 分组。用于前端刷新页面后拉取历史成交明细，与订单列表合并展示（每笔委托可展开多笔 execId / execQty / execPrice）。
+- 响应示例：
+```json
+{
+  "success": true,
+  "code": 0,
+  "message": "Executions retrieved",
+  "data": {
+    "d4fbb7ca6e2341fc": [
+      { "execId": "E001", "execQty": 100, "execPrice": 25.80 },
+      { "execId": "E002", "execQty": 50, "execPrice": 25.81 }
+    ]
+  },
+  "timestamp": 1772800000000
+}
+```
+- `data` 的 key 为 taker 的 `clOrderId`，value 为该订单的成交明细数组（按成交时间正序），每项含 `execId`、`execQty`、`execPrice`。
+
 ---
 
 ## 2. 异步回报类型
@@ -211,11 +234,22 @@
     "qty": "uint32", // 订单数量 (4字节无符号整数)
     "price": "double", // 订单价格 (8字节浮点数)
     "shareholderId": "char[10]", // 股东号 (10字节字符串)
-    "rejectCode": "int32", // 错误代码 (4字节整数)
-    "rejectText": "char[64]" // 错误原因说明 (64字节字符串)
+    "rejectCode": "int32", // 错误代码 (4字节整数)，见下表
+    "rejectText": "char[64]" // 错误原因说明 (64字节字符串)，服务端为英文；前端可依 rejectCode 展示中文
 }
 ```
+
+| rejectCode | 含义 |
+|------------|------|
+| 4001 | 对敲拒绝（Wash trade rejected） |
+| 4002 | 重复客户订单号（Duplicate clOrderId） |
+| 4003 | 价格偏离拒绝（Order price deviates too much from the latest market price） |
+| 1001 | 未找到（如撤单时订单不存在） |
+| 1999 | 参数校验失败 |
+| 5000 | 系统错误 |
 2.3 订单成交回报
+
+一笔委托若与多笔对手单成交，会收到**多条** ORDER_EXECUTION（每条对应一笔撮合结果，含独立 execId、execQty、execPrice）。客户端应按 clOrderId 聚合多笔回报以展示「成交明细」。
 
 ``` json        
 {
@@ -224,11 +258,11 @@
     "securityId": "char[6]", // 订单交易的股票代码 (6字节字符串)
     "side": "char[1]", // 订单买卖方向 (1字节字符串) B: 买, S: 卖
     "qty": "uint32", // 订单原始数量 (4字节无符号整数)
-    "price": "double", // 订单原始价格 (8字节浮点数)
+    "price": "double", // 订单委托价 (8字节浮点数)
     "shareholderId": "char[10]", // 股东号 (10字节字符串)
-    "execId": "char[12]", // 成交的唯一编号 (12字节字符串)
-    "execQty": "uint32", // 本次成交数量 (4字节无符号整数)
-    "execPrice": "double" // 本次成交价格 (8字节浮点数)
+    "execId": "char[12]", // 本笔成交的唯一编号 (12字节字符串)
+    "execQty": "uint32", // 本笔成交数量 (4字节无符号整数)
+    "execPrice": "double" // 本笔成交价格 (8字节浮点数)
 }
 ```
 

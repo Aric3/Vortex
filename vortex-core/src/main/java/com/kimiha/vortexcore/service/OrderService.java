@@ -8,9 +8,17 @@ import com.kimiha.vortexcore.model.ValidationResult;
 import com.kimiha.vortexcore.model.domain.Order;
 import com.kimiha.vortexcore.model.dto.OrderSubmitRequest;
 import com.kimiha.vortexcore.model.dto.OrderSubmitResponse;
+import com.kimiha.vortexcore.model.dto.ExecutionDto;
 import com.kimiha.vortexcore.model.dto.report.CancelRequest;
+import com.kimiha.vortexcore.model.entity.TradeEntity;
 import com.kimiha.vortexcore.repository.OrderRepository;
+import com.kimiha.vortexcore.repository.TradeRepository;
 import com.lmax.disruptor.RingBuffer;
+
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.stream.Collectors;
 import com.lmax.disruptor.dsl.Disruptor;
 
 import java.util.List;
@@ -19,19 +27,41 @@ import java.util.Set;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class OrderService {
+
+    private static final Logger log = LogManager.getLogger(OrderService.class);
     private static final Set<String> VALID_MARKETS = Set.of("XSHG", "XSHE", "BJSE");
 
     private final OrderRepository orderRepository;
+    private final TradeRepository tradeRepository;
     private final Disruptor<OrderEvent> disruptor;
 
-    public OrderService(OrderRepository orderRepository, Disruptor<OrderEvent> disruptor) {
+    public OrderService(OrderRepository orderRepository, TradeRepository tradeRepository, Disruptor<OrderEvent> disruptor) {
         this.orderRepository = orderRepository;
+        this.tradeRepository = tradeRepository;
         this.disruptor = disruptor;
+    }
+
+    /**
+     * 按股东号查询该股东作为 taker 的成交明细，按 clOrderId 分组，用于前端刷新后恢复多笔成交展示。
+     */
+    @Transactional(readOnly = true)
+    public Map<String, List<ExecutionDto>> findExecutionsByShareholderId(String shareholderId) {
+        if (shareholderId == null || shareholderId.length() != 10) {
+            return Map.of();
+        }
+        List<TradeEntity> trades = tradeRepository.findByTakerShareholderIdOrderByTradeTimeEpochMsAsc(shareholderId);
+        return trades.stream()
+                .collect(Collectors.groupingBy(TradeEntity::getTakerClOrderId,
+                        LinkedHashMap::new,
+                        Collectors.mapping(t -> new ExecutionDto(t.getExecId(), t.getQty(), t.getPrice()),
+                                Collectors.toCollection(ArrayList::new))));
     }
 
     @Transactional
@@ -39,10 +69,14 @@ public class OrderService {
         Order order = Order.fromRequest(request);
         ValidationResult validation = validateOrder(order);
         if (!validation.isSuccess()) {
+            log.warn("[ORDER_SUBMIT] validation failed clOrderId={} shareholderId={} reason={}",
+                    request.clOrderId(), request.shareholderId(), validation.getMessage());
             return new ProcessOrderResult(validation, null);
         }
         RingBuffer<OrderEvent> ringBuffer = disruptor.getRingBuffer();
         ringBuffer.publishEvent((event, sequence) -> event.setOrder(order));
+        log.info("[ORDER_SUBMIT] published to disruptor clOrderId={} shareholderId={} securityId={}",
+                order.getClOrderId(), order.getShareholderId(), order.getSecurityId());
         return new ProcessOrderResult(ValidationResult.pass(), new OrderSubmitResponse(order.getClOrderId()));
     }
 

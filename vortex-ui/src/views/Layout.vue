@@ -104,7 +104,7 @@ const activeMenu = computed(() => route.path || '/orderbook');
 
 const symbolOptions = ref<string[]>([]);
 const lastPrice = ref<number | null>(null);
-let pollTimer: ReturnType<typeof setInterval> | null = null;
+let quoteTickEs: EventSource | null = null;
 let reportEs: EventSource | null = null;
 
 async function fetchSymbols() {
@@ -118,30 +118,35 @@ async function fetchSymbols() {
   }
 }
 
-async function fetchTick() {
-  const sid = filter.securityId;
-  if (!sid) return;
-  try {
-    const res = await http.get<ApiResult<{ lastPrice?: number }>>(`/v1/vclient/quote/tick/${encodeURIComponent(sid)}`);
-    if (res.data?.success && res.data.data != null && typeof res.data.data.lastPrice === 'number') {
-      lastPrice.value = res.data.data.lastPrice;
-    }
-  } catch {
-    lastPrice.value = null;
+function connectQuoteTickStream() {
+  if (quoteTickEs) {
+    try {
+      quoteTickEs.close();
+    } catch {}
+    quoteTickEs = null;
   }
+  const sid = filter.securityId;
+  if (!sid) {
+    lastPrice.value = null;
+    return;
+  }
+  const path = `/v1/vclient/quote/stream/tick/${encodeURIComponent(sid)}`;
+  quoteTickEs = createSSE(path);
+  quoteTickEs.onmessage = (evt) => {
+    const raw = typeof evt.data === 'string' ? evt.data : '';
+    const data = safeJsonParse<{ lastPrice?: number }>(raw);
+    if (data != null && typeof data.lastPrice === 'number') {
+      lastPrice.value = data.lastPrice;
+    }
+  };
 }
 
-function startPolling() {
-  stopPolling();
-  if (!filter.securityId) return;
-  fetchTick();
-  pollTimer = setInterval(fetchTick, 2000);
-}
-
-function stopPolling() {
-  if (pollTimer) {
-    clearInterval(pollTimer);
-    pollTimer = null;
+function disconnectQuoteTickStream() {
+  if (quoteTickEs) {
+    try {
+      quoteTickEs.close();
+    } catch {}
+    quoteTickEs = null;
   }
   lastPrice.value = null;
 }
@@ -167,7 +172,7 @@ function connectReportStream() {
 
 onMounted(() => {
   fetchSymbols();
-  if (filter.securityId) startPolling();
+  connectQuoteTickStream();
   connectReportStream();
 });
 
@@ -175,13 +180,12 @@ watch(() => filter.shareholderId, () => {
   connectReportStream();
 });
 
-watch(() => filter.securityId, (sid) => {
-  if (sid) startPolling();
-  else stopPolling();
+watch(() => filter.securityId, () => {
+  connectQuoteTickStream();
 });
 
 onBeforeUnmount(() => {
-  stopPolling();
+  disconnectQuoteTickStream();
   if (reportEs) {
     try { reportEs.close(); } catch {}
     reportEs = null;

@@ -3,9 +3,12 @@ package com.kimiha.vortexcore.service;
 import com.kimiha.vortexcore.model.dto.report.OrderReportEnvelope;
 import com.kimiha.vortexcore.model.dto.report.ReportType;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
+import reactor.util.concurrent.Queues;
 
 import java.time.Duration;
 import java.util.concurrent.ConcurrentHashMap;
@@ -17,6 +20,8 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 @Service
 public class OrderReportStreamService {
+
+    private static final Logger log = LogManager.getLogger(OrderReportStreamService.class);
 
     private static final OrderReportEnvelope HEARTBEAT_ENVELOPE = new OrderReportEnvelope(ReportType.HEARTBEAT, null);
     private static final Duration HEARTBEAT_INTERVAL = Duration.ofSeconds(30);
@@ -31,8 +36,11 @@ public class OrderReportStreamService {
         if (shareholderId == null || shareholderId.isBlank()) {
             return Flux.error(new IllegalArgumentException("shareholderId required"));
         }
+        // autoCancel=false：浏览器刷新会取消订阅，若用默认 true 则 Sink 会被关掉，新连接收不到回报
         Sinks.Many<OrderReportEnvelope> sink = sinksByShareholder.computeIfAbsent(shareholderId,
-                k -> Sinks.many().multicast().onBackpressureBuffer());
+                k -> Sinks.many().multicast().onBackpressureBuffer(Queues.SMALL_BUFFER_SIZE, false));
+        log.info("[REPORT_STREAM] SSE subscribed shareholderId={} activeSubscribers={}",
+                shareholderId, sinksByShareholder.size());
         Flux<OrderReportEnvelope> heartbeats = Flux.concat(
                 Flux.just(HEARTBEAT_ENVELOPE),
                 Flux.interval(HEARTBEAT_INTERVAL).map(tick -> HEARTBEAT_ENVELOPE)
@@ -47,7 +55,16 @@ public class OrderReportStreamService {
         if (shareholderId == null || report == null) return;
         Sinks.Many<OrderReportEnvelope> sink = sinksByShareholder.get(shareholderId);
         if (sink != null) {
-            sink.tryEmitNext(report);
+            Sinks.EmitResult result = sink.tryEmitNext(report);
+            log.debug("[REPORT_STREAM] pushReport shareholderId={} reportType={} emitResult={}",
+                    shareholderId, report.getReportType(), result);
+            if (result.isFailure()) {
+                log.warn("[REPORT_STREAM] pushReport emit failed shareholderId={} reportType={} result={}",
+                        shareholderId, report.getReportType(), result);
+            }
+        } else {
+            log.warn("[REPORT_STREAM] pushReport no sink for shareholderId={} reportType={} (SSE not connected for this shareholder?)",
+                    shareholderId, report.getReportType());
         }
     }
 }
