@@ -11,7 +11,7 @@ import java.util.List;
 import com.lmax.disruptor.RingBuffer;
 
 /**
- * 持有 N 个分片 Disruptor 及其 RingBuffer 列表，供 OrderEventRouter 与生命周期使用
+ * 持有 N 个分片 Disruptor 及其 RingBuffer 列表；OrderService 按 securityId 直投对应分片，生命周期由 DistruptorManager 管理。
  */
 public class ShardDisruptorHolder {
 

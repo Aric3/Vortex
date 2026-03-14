@@ -3,6 +3,8 @@ package com.kimiha.vortexcore.service;
 import com.kimiha.vortexcore.model.entity.CancellationEntity;
 import com.kimiha.vortexcore.model.entity.OrderEntity;
 import com.kimiha.vortexcore.disruptor.order.OrderEvent;
+import com.kimiha.vortexcore.disruptor.order.OrderShardRouter;
+import com.kimiha.vortexcore.disruptor.order.ShardDisruptorHolder;
 import com.kimiha.vortexcore.model.ProcessOrderResult;
 import com.kimiha.vortexcore.model.ValidationResult;
 import com.kimiha.vortexcore.model.domain.Order;
@@ -17,11 +19,9 @@ import com.lmax.disruptor.RingBuffer;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-import com.lmax.disruptor.dsl.Disruptor;
-
-import java.util.List;
 import java.util.Set;
 
 import org.springframework.data.domain.Page;
@@ -37,12 +37,12 @@ public class OrderService {
 
     private final OrderRepository orderRepository;
     private final TradeRepository tradeRepository;
-    private final Disruptor<OrderEvent> disruptor;
+    private final ShardDisruptorHolder shardDisruptorHolder;
 
-    public OrderService(OrderRepository orderRepository, TradeRepository tradeRepository, Disruptor<OrderEvent> disruptor) {
+    public OrderService(OrderRepository orderRepository, TradeRepository tradeRepository, ShardDisruptorHolder shardDisruptorHolder) {
         this.orderRepository = orderRepository;
         this.tradeRepository = tradeRepository;
-        this.disruptor = disruptor;
+        this.shardDisruptorHolder = shardDisruptorHolder;
     }
 
     /**
@@ -68,8 +68,9 @@ public class OrderService {
         if (!validation.isSuccess()) {
             return new ProcessOrderResult(validation, null);
         }
-        RingBuffer<OrderEvent> ringBuffer = disruptor.getRingBuffer();
-        ringBuffer.publishEvent((event, sequence) -> event.setOrder(order));
+        List<RingBuffer<OrderEvent>> shardBuffers = shardDisruptorHolder.getShardRingBuffers();
+        int shardIndex = OrderShardRouter.shardIndex(order.getSecurityId(), shardBuffers.size());
+        shardBuffers.get(shardIndex).publishEvent((event, sequence) -> event.setOrder(order));
         return new ProcessOrderResult(ValidationResult.pass(), new OrderSubmitResponse(order.getClOrderId()));
     }
 
@@ -127,8 +128,9 @@ public class OrderService {
             return validation;
         }
         CancellationEntity cancellation = toCancellationEntity(cancelRequest);
-        RingBuffer<OrderEvent> ringBuffer = disruptor.getRingBuffer();
-        ringBuffer.publishEvent((event, sequence) -> {
+        List<RingBuffer<OrderEvent>> shardBuffers = shardDisruptorHolder.getShardRingBuffers();
+        int shardIndex = OrderShardRouter.shardIndex(cancellation.getSecurityId(), shardBuffers.size());
+        shardBuffers.get(shardIndex).publishEvent((event, sequence) -> {
             event.setCancel(true);
             event.setCancellation(cancellation);
         });

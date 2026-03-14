@@ -9,12 +9,13 @@ import static org.mockito.Mockito.when;
 
 import com.kimiha.vortexcore.model.entity.OrderEntity;
 import com.kimiha.vortexcore.disruptor.order.OrderEvent;
+import com.kimiha.vortexcore.disruptor.order.ShardDisruptorHolder;
 import com.kimiha.vortexcore.model.ValidationResult;
 import com.kimiha.vortexcore.model.domain.Order;
 import com.kimiha.vortexcore.repository.OrderRepository;
 import com.kimiha.vortexcore.repository.TradeRepository;
 import com.lmax.disruptor.RingBuffer;
-import com.lmax.disruptor.dsl.Disruptor;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -38,11 +39,11 @@ class TradingServiceValidationTest {
     void setUp() {
         OrderRepository orderRepository = mock(OrderRepository.class);
         TradeRepository tradeRepository = mock(TradeRepository.class);
-        Disruptor<OrderEvent> disruptor = mock(Disruptor.class);
+        ShardDisruptorHolder shardDisruptorHolder = mock(ShardDisruptorHolder.class);
         RingBuffer<OrderEvent> ringBuffer = mock(RingBuffer.class);
-        when(disruptor.getRingBuffer()).thenReturn(ringBuffer);
+        when(shardDisruptorHolder.getShardRingBuffers()).thenReturn(List.of(ringBuffer));
         doNothing().when(ringBuffer).publishEvent(any());
-        tradingService = new OrderService(orderRepository, tradeRepository, disruptor);
+        tradingService = new OrderService(orderRepository, tradeRepository, shardDisruptorHolder);
     }
 
     @Test

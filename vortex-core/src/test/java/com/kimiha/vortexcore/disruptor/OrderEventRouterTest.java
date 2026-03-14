@@ -3,6 +3,7 @@ package com.kimiha.vortexcore.disruptor;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.kimiha.vortexcore.disruptor.order.OrderShardRouter;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -11,17 +12,12 @@ import org.junit.jupiter.api.Test;
  */
 class OrderEventRouterTest {
 
-    private static int shardIndex(int shardCount, String securityId) {
-        String s = securityId == null ? "" : securityId;
-        return Math.abs(s.hashCode() % shardCount);
-    }
-
     @Test
     void sameSecurityId_sameShardIndex() {
         int n = 4;
         for (String securityId : List.of("600001", "600002", "600519", "000001")) {
-            int a = shardIndex(n, securityId);
-            int b = shardIndex(n, securityId);
+            int a = OrderShardRouter.shardIndex(securityId, n);
+            int b = OrderShardRouter.shardIndex(securityId, n);
             assertEquals(a, b, "same securityId must yield same shardIndex");
         }
     }
@@ -30,7 +26,7 @@ class OrderEventRouterTest {
     void shardIndex_inRange() {
         int n = 8;
         for (String securityId : List.of("600001", "600002", "000001", "")) {
-            int idx = shardIndex(n, securityId);
+            int idx = OrderShardRouter.shardIndex(securityId, n);
             assertTrue(idx >= 0 && idx < n, "shardIndex in [0, " + n + ")");
         }
     }
@@ -38,15 +34,15 @@ class OrderEventRouterTest {
     @Test
     void nullOrEmptySecurityId_mapsToShardZero() {
         int n = 4;
-        assertEquals(0, shardIndex(n, null));
-        assertEquals(0, shardIndex(n, ""));
+        assertEquals(0, OrderShardRouter.shardIndex(null, n));
+        assertEquals(0, OrderShardRouter.shardIndex("", n));
     }
 
     @Test
     void orderAndCancel_sameSecurityId_sameShard() {
         int n = 4;
         String securityId = "600100";
-        assertEquals(shardIndex(n, securityId), shardIndex(n, securityId),
+        assertEquals(OrderShardRouter.shardIndex(securityId, n), OrderShardRouter.shardIndex(securityId, n),
                 "order and cancel for same securityId must use same shard (routing key is securityId)");
     }
 }
