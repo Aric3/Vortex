@@ -6,7 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.kimiha.vortexcore.Utils;
 import com.kimiha.vortexcore.disruptor.order.OrderEvent;
 import com.kimiha.vortexcore.disruptor.order.OrderEventHandler;
-import com.kimiha.vortexcore.disruptor.order.OrderEventRouter;
+import com.kimiha.vortexcore.disruptor.order.OrderShardRouter;
 import com.kimiha.vortexcore.disruptor.order.ShardDisruptorHolder;
 import com.kimiha.vortexcore.matching.MatchingEngine;
 import com.kimiha.vortexcore.matching.OrderBook;
@@ -110,77 +110,51 @@ class DisruptorOrderProcessingTest {
         }
     }
 
-    /** N=1 管道：主 Disruptor -> Router -> 单分片 -> OrderEventHandler，行为与单消费者一致。 */
+    /** 单分片：发布端按 securityId 直投分片 RingBuffer，订单入簿。 */
     @Test
-    void routerWithOneShard_orderProcessed_orderRestsOnBook() throws InterruptedException {
+    void publishToSingleShard_orderProcessed_orderRestsOnBook() throws InterruptedException {
         MatchingEngine matchingEngine = new MatchingEngine();
         OrderEventHandler handler = new OrderEventHandler(matchingEngine, null, null, null, null, false, 0.02);
         ShardDisruptorHolder holder = new ShardDisruptorHolder(1, handler);
-        OrderEventRouter router = new OrderEventRouter(holder.getShardRingBuffers());
-
-        int bufferSize = 16;
-        Disruptor<OrderEvent> mainDisruptor = new Disruptor<>(
-                OrderEvent::new,
-                bufferSize,
-                DaemonThreadFactory.INSTANCE,
-                ProducerType.SINGLE,
-                new YieldingWaitStrategy()
-        );
-        mainDisruptor.handleEventsWith(router);
-        mainDisruptor.start();
 
         try {
             String sec = "600020";
             Order buy = order(Utils.randomClOrderId(), "B", sec, Utils.randomShareholderId(), 10.0, 100);
-            RingBuffer<OrderEvent> mainBuffer = mainDisruptor.getRingBuffer();
-            mainBuffer.publishEvent((event, sequence) -> event.setOrder(buy));
+            int shardIndex = OrderShardRouter.shardIndex(sec, 1);
+            holder.getShardRingBuffers().get(shardIndex).publishEvent((event, sequence) -> event.setOrder(buy));
 
             Thread.sleep(300);
 
             OrderBook book = matchingEngine.getOrderBook(sec);
-            assertEquals(1, book.getRestingOrderCount(), "N=1 pipeline: order should rest on book");
+            assertEquals(1, book.getRestingOrderCount(), "N=1 direct publish: order should rest on book");
         } finally {
-            mainDisruptor.shutdown();
             for (var d : holder.getShardDisruptors()) {
                 d.shutdown();
             }
         }
     }
 
-    /** 多分片：不同 securityId 的订单进入不同分片，各自订单簿正确。 */
+    /** 多分片：按 securityId 直投对应分片，不同标的进入不同分片，各自订单簿正确。 */
     @Test
-    void routerWithMultipleShards_differentSymbols_bothOrdersOnBooks() throws InterruptedException {
+    void publishToMultipleShards_differentSymbols_bothOrdersOnBooks() throws InterruptedException {
         MatchingEngine matchingEngine = new MatchingEngine();
         OrderEventHandler handler = new OrderEventHandler(matchingEngine, null, null, null, null, false, 0.02);
         ShardDisruptorHolder holder = new ShardDisruptorHolder(4, handler);
-        OrderEventRouter router = new OrderEventRouter(holder.getShardRingBuffers());
-
-        int bufferSize = 16;
-        Disruptor<OrderEvent> mainDisruptor = new Disruptor<>(
-                OrderEvent::new,
-                bufferSize,
-                DaemonThreadFactory.INSTANCE,
-                ProducerType.SINGLE,
-                new YieldingWaitStrategy()
-        );
-        mainDisruptor.handleEventsWith(router);
-        mainDisruptor.start();
+        var shardBuffers = holder.getShardRingBuffers();
 
         try {
             String sec1 = "600001";
             String sec2 = "600002";
             Order buy1 = order(Utils.randomClOrderId(), "B", sec1, Utils.randomShareholderId(), 10.0, 100);
             Order buy2 = order(Utils.randomClOrderId(), "B", sec2, Utils.randomShareholderId(), 11.0, 200);
-            RingBuffer<OrderEvent> mainBuffer = mainDisruptor.getRingBuffer();
-            mainBuffer.publishEvent((event, sequence) -> event.setOrder(buy1));
-            mainBuffer.publishEvent((event, sequence) -> event.setOrder(buy2));
+            shardBuffers.get(OrderShardRouter.shardIndex(sec1, 4)).publishEvent((event, sequence) -> event.setOrder(buy1));
+            shardBuffers.get(OrderShardRouter.shardIndex(sec2, 4)).publishEvent((event, sequence) -> event.setOrder(buy2));
 
             Thread.sleep(400);
 
             assertEquals(1, matchingEngine.getOrderBook(sec1).getRestingOrderCount());
             assertEquals(1, matchingEngine.getOrderBook(sec2).getRestingOrderCount());
         } finally {
-            mainDisruptor.shutdown();
             for (var d : holder.getShardDisruptors()) {
                 d.shutdown();
             }
